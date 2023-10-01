@@ -3,12 +3,6 @@ project(tinyrpc)
 
 # PROJECT_SOURCE_DIR ==> 
 #       当使用project命令指定项目名称时，CMake会自动设置PROJECT_SOURCE_DIR的默认值为项目根目录的路径
-
-SET(CMAKE_BUILD_TYPE "Debug") 
-# 添加对gdb的支持
-SET(CMAKE_CXX_FLAGS_DEBUG "$ENV{CXXFLAGS} -O0 -Wall -g2 -ggdb")
-SET(CMAKE_CXX_FLAGS_RELEASE "$ENV{CXXFLAGS} -O3 -Wall")
-
 SET(CMAKE_INSTALL_PREFIX ${PROJECT_SOURCE_DIR})
 enable_language(ASM)
 
