@@ -11,6 +11,8 @@ namespace tinyrpc {
 
 extern tinyrpc::Config::ptr gRpcConfig;
 
+// ???
+// 因为在主线程中创建，那么就只有一个协程POOL
 static CoroutinePool* t_coroutine_container_ptr = nullptr; 
 
 CoroutinePool* GetCoroutinePool() {
@@ -23,13 +25,17 @@ CoroutinePool* GetCoroutinePool() {
 
 CoroutinePool::CoroutinePool(int pool_size, int stack_size /*= 1024 * 128 B*/) : m_pool_size(pool_size), m_stack_size(stack_size) {
   // set main coroutine first
+  // 先设主协程
   Coroutine::GetCurrentCoroutine();
   
+  // 从分配的Memory设置内存
   m_memory_pool.push_back(std::make_shared<Memory>(stack_size, pool_size));
 
   Memory::ptr tmp = m_memory_pool[0];
 
   for (int i = 0; i < pool_size; ++i) {
+    // 需要得到非NULL的stack_ptr
+    // 协程shared_ptr
     Coroutine::ptr cor = std::make_shared<Coroutine>(stack_size, tmp->getBlock());
     cor->setIndex(i);
     m_free_cors.push_back(std::make_pair(cor, false));
@@ -51,14 +57,16 @@ Coroutine::ptr CoroutinePool::getCoroutineInstanse() {
 
   Mutex::Lock lock(m_mutex);
   for (int i = 0; i < m_pool_size; ++i) {
+    // 如果一个协程没有在使用
     if (!m_free_cors[i].first->getIsInCoFunc() && !m_free_cors[i].second) {
       m_free_cors[i].second = true;
       Coroutine::ptr cor = m_free_cors[i].first;
-      lock.unlock();
       return cor;
     }
   }
 
+  // 因为m_memory_pool[0]全用来分配m_free_cors
+  // 先检查已有的内存池
   for (size_t i = 1; i < m_memory_pool.size(); ++i) {
     char* tmp = m_memory_pool[i]->getBlock();
     if(tmp) {
@@ -66,16 +74,21 @@ Coroutine::ptr CoroutinePool::getCoroutineInstanse() {
       return cor;
     }    
   }
+  // 如果内存池不够，再去开辟一个内存池
   m_memory_pool.push_back(std::make_shared<Memory>(m_stack_size, m_pool_size));
   return std::make_shared<Coroutine>(m_stack_size, m_memory_pool[m_memory_pool.size() - 1]->getBlock());
 }
 
+// 返回协程
 void CoroutinePool::returnCoroutine(Coroutine::ptr cor) {
   int i = cor->getIndex();
   if (i >= 0 && i < m_pool_size) {
+    // 如果是固定分配时，直接不使用便可
     m_free_cors[i].second = false;
   } else {
+    // 否则要返回m_memory_pool内存
     for (size_t i = 1; i < m_memory_pool.size(); ++i) {
+      // 识别协程的m_stack_sp在的区间
       if (m_memory_pool[i]->hasBlock(cor->getStackPtr())) {
         m_memory_pool[i]->backBlock(cor->getStackPtr());
       }

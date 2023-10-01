@@ -46,6 +46,7 @@ void HttpServlet::setHttpBody(HttpResponse* res, const std::string& body) {
   res->m_response_header.m_maps["Content-Length"]= std::to_string(res->m_response_body.length());
 }
 
+// 设置request和response共同的回复
 void HttpServlet::setCommParam(HttpRequest* req, HttpResponse* res) {
   DebugLog << "set response version=" << req->m_request_version;
   res->m_response_version = req->m_request_version;

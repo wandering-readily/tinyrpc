@@ -17,6 +17,7 @@ namespace tinyrpc {
 
 extern tinyrpc::Config::ptr gRpcConfig;
 
+// thread_local类型变量
 static thread_local Reactor* t_reactor_ptr = nullptr;
 
 static thread_local IOThread* t_cur_io_thread = nullptr;
@@ -84,25 +85,32 @@ void* IOThread::main(void* arg) {
   IOThread* thread = static_cast<IOThread*>(arg);
   t_cur_io_thread = thread;
   thread->m_reactor = t_reactor_ptr;
+  // IO thread reactor设置为SubReactor
   thread->m_reactor->setReactorType(SubReactor);
   thread->m_tid = gettid();
 
   Coroutine::GetCurrentCoroutine();
 
   DebugLog << "finish iothread init, now post semaphore";
+  // IOThread()构造函数会等待m_init_semaphore
   sem_post(&thread->m_init_semaphore);
 
   // wait for main thread post m_start_semaphore to start iothread loop
+  // 等待IOThreadPool释放信息 ThreadPool().start()
   sem_wait(&thread->m_start_semaphore);
 
   sem_destroy(&thread->m_start_semaphore);
 
   DebugLog << "IOThread " << thread->m_tid << " begin to loop";
+  // !!!
+  // 开始循环
   t_reactor_ptr->loop();
 
   return nullptr;
 }
 
+// ???
+// IOThread addClient操作作用?
 void IOThread::addClient(TcpConnection* tcp_conn) {
   tcp_conn->registerToTimeWheel();
   tcp_conn->setUpServer();
@@ -118,6 +126,7 @@ IOThreadPool::IOThreadPool(int size) : m_size(size) {
 }
 
 void IOThreadPool::start() {
+  // 关联IOThrea::main()的m_start_semaphore
   for (int i = 0; i < m_size; ++i) {
     int rt = sem_post(m_io_threads[i]->getStartSemaphore());
     assert(rt == 0);
@@ -125,6 +134,8 @@ void IOThreadPool::start() {
 }
 
 IOThread* IOThreadPool::getIOThread() {
+  // 轮询获得IOThread
+  // -1是std::atomic<int>超界之后的选择
   if (m_index == m_size || m_index == -1) {
     m_index = 0;
   }
@@ -137,17 +148,21 @@ int IOThreadPool::getIOThreadPoolSize() {
 }
 
 void IOThreadPool::broadcastTask(std::function<void()> cb) {
+  // ???
+  // 每个IOThread添加cb?
   for (auto i : m_io_threads) {
     i->getReactor()->addTask(cb, true);
   }
 }
 
 void IOThreadPool::addTaskByIndex(int index, std::function<void()> cb) {
+  // 特定线程添加cb
   if (index >= 0 && index < m_size) {
     m_io_threads[index]->getReactor()->addTask(cb, true);
   }
 }
 
+// 添加Coroutine
 void IOThreadPool::addCoroutineToRandomThread(Coroutine::ptr cor, bool self /* = false*/) {
   if (m_size == 1) {
     m_io_threads[0]->getReactor()->addCoroutine(cor, true);
@@ -176,12 +191,16 @@ void IOThreadPool::addCoroutineToRandomThread(Coroutine::ptr cor, bool self /* =
 
 
 Coroutine::ptr IOThreadPool::addCoroutineToRandomThread(std::function<void()> cb, bool self/* = false*/) {
+  // 获取一个Coroutine
   Coroutine::ptr cor = GetCoroutinePool()->getCoroutineInstanse();
+  // 启用协程
   cor->setCallBack(cb);
+  // 协程内容添加到random thread，而这个self决定是否一定要发生在curIOThread
   addCoroutineToRandomThread(cor, self);
   return cor;
 }
 
+// 根据IOThread index添加协程内容
 Coroutine::ptr IOThreadPool::addCoroutineToThreadByIndex(int index, std::function<void()> cb, bool self/* = false*/) {
   if (index >= (int)m_io_threads.size() || index < 0) {
     ErrorLog << "addCoroutineToThreadByIndex error, invalid iothread index[" << index << "]";
@@ -194,6 +213,7 @@ Coroutine::ptr IOThreadPool::addCoroutineToThreadByIndex(int index, std::functio
 
 }
 
+// 每个线程添加协程内容
 void IOThreadPool::addCoroutineToEachThread(std::function<void()> cb) {
   for (auto i : m_io_threads) {
     Coroutine::ptr cor = GetCoroutinePool()->getCoroutineInstanse();

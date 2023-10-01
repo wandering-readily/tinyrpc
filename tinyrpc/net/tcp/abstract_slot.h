@@ -14,6 +14,8 @@ class AbstractSlot {
   typedef std::weak_ptr<T> weakPtr;
   typedef std::shared_ptr<T> sharedPtr;
 
+  typedef std::shared_ptr<AbstractSlot<T>> anptr;
+
   AbstractSlot(weakPtr ptr, std::function<void(sharedPtr)> cb) : m_weak_ptr(ptr), m_cb(cb) {
 
   }

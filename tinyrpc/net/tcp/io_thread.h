@@ -15,6 +15,9 @@ namespace tinyrpc {
 
 class TcpServer;
 
+/*
+ *  IO 线程就是一个 SubReactor
+ */
 class IOThread {
 
  public:

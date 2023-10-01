@@ -26,6 +26,8 @@ class Memory {
 
   char* getBlock();
 
+  char* getBlockBlocked();
+
   void backBlock(char* s);
 
   bool hasBlock(char* s);
@@ -41,6 +43,7 @@ class Memory {
   std::atomic<int> m_ref_counts {0};
   std::vector<bool> m_blocks;
   Mutex m_mutex;
+  pthread_cond_t condition_;
 
 };
 

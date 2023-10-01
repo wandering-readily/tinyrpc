@@ -28,16 +28,22 @@ void CoroutineMutex::lock() {
 
   Coroutine* cor = Coroutine::GetCurrentCoroutine();
 
+  bool flag = true;
+  std::queue<tinyrpc::Coroutine *> tmp;
+  {
   Mutex::Lock lock(m_mutex);
   if (!m_lock) {
+    flag = false;
     m_lock = true;
-    DebugLog << "coroutine succ get coroutine mutex";
-    lock.unlock();
   } else {
     m_sleep_cors.push(cor);
-    auto tmp = m_sleep_cors;
-    lock.unlock();
+    tmp = m_sleep_cors;
+  }
+  }
 
+  if(!flag) {
+    DebugLog << "coroutine succ get coroutine mutex";
+  } else {
     DebugLog << "coroutine yield, pending coroutine mutex, current sleep queue exist ["
       << tmp.size() << "] coroutines";
 
@@ -51,6 +57,8 @@ void CoroutineMutex::unlock() {
     return;
   }
 
+  Coroutine* cor = NULL;
+  {
   Mutex::Lock lock(m_mutex);
   if (m_lock) {
     m_lock = false;
@@ -60,16 +68,16 @@ void CoroutineMutex::unlock() {
 
     Coroutine* cor = m_sleep_cors.front();
     m_sleep_cors.pop();
-    lock.unlock();
+  }
+  }
 
-    if (cor) {
-      // wakeup the first cor in sleep queue
-      DebugLog << "coroutine unlock, now to resume coroutine[" << cor->getCorId() << "]";
+  if (cor) {
+    // wakeup the first cor in sleep queue
+    DebugLog << "coroutine unlock, now to resume coroutine[" << cor->getCorId() << "]";
 
-      tinyrpc::Reactor::GetReactor()->addTask([cor]() {
-        tinyrpc::Coroutine::Resume(cor);
-      }, true);
-    }
+    tinyrpc::Reactor::GetReactor()->addTask([cor]() {
+      tinyrpc::Coroutine::Resume(cor);
+    }, true);
   }
 }
 

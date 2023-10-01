@@ -5,7 +5,8 @@
 #include <google/protobuf/stubs/callback.h>
 #include <stdio.h>
 #include <memory>
-#include "../net_address.h"
+// #include "../net_address.h"
+#include "tinyrpc/net/net_address.h"
 
 namespace tinyrpc {
 

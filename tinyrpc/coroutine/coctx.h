@@ -12,12 +12,14 @@ enum {
 };
 
 
+// 协程的寄存器
 struct coctx {
   void* regs[14];
 };
 
 extern "C" {
 // save current register's state to fitst coctx, and from second coctx take out register's state to assign register
+// 汇编代码 ==> 存储和释放寄存器资源
 extern void coctx_swap(coctx *, coctx *) asm("coctx_swap");
 
 };

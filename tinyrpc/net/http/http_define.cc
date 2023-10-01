@@ -36,7 +36,10 @@ const char* httpCodeToString(const int code) {
 }
 
 std::string HttpHeaderComm::getValue(const std::string& key) {
-  return m_maps[key.c_str()];
+  // ???
+  // 为什么要取出const char *?
+  // return m_maps[key.c_str()];
+  return m_maps[key];
 }
 
 int HttpHeaderComm::getHeaderTotalLength() {
@@ -48,7 +51,11 @@ int HttpHeaderComm::getHeaderTotalLength() {
 }
 
 void HttpHeaderComm::setKeyValue(const std::string& key, const std::string& value) {
-  m_maps[key.c_str()] = value;
+  // ???
+  // 为什么要取出const char *?
+  // return m_maps[key.c_str()];
+  // m_maps[key.c_str()] = value;
+  m_maps[key] = value;
 }
 
 std::string HttpHeaderComm::toHttpString() {

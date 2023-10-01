@@ -27,6 +27,7 @@ class TimerEvent {
     DebugLog << "timeevent will occur at " << m_arrive_time;
   }
 
+  // 设置下次到达时间
   void resetTime() {
     // DebugLog << "reset tiemrevent, origin arrivetime=" << m_arrive_time;
     m_arrive_time = getNowMs() + m_interval;  	
@@ -57,6 +58,7 @@ class TimerEvent {
 
 class FdEvent;
 
+// Timer继承自FdEvent
 class Timer : public tinyrpc::FdEvent {
 
  public:

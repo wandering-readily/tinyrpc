@@ -21,6 +21,16 @@ enum IOEvent {
   ETModel = EPOLLET,
 };
 
+/*
+ * FdEvent:
+ *          Reactor* m_reactor {nullptr};
+ *          Coroutine* m_coroutine {nullptr};
+ * 那么FdEvent直接持有这俩指针
+ * 
+ * Reactor* 可以从当前线程获取reactor指针
+ * Coroutine* 则是直接设定，一般是线程正在使用的Coroutine*
+ * 
+ */
 class FdEvent : public std::enable_shared_from_this<FdEvent> {
  public:
 
@@ -94,6 +104,7 @@ class FdEventContainer {
   static FdEventContainer* GetFdContainer();
 
  private:
+  // 用哈希表是不是性能更好?
   RWMutex m_mutex;
   std::vector<FdEvent::ptr> m_fds;
 

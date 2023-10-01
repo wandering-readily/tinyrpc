@@ -7,17 +7,21 @@ namespace tinyrpc {
 
 void* ThreadPool::MainFunction(void* ptr) {
   ThreadPool* pool = reinterpret_cast<ThreadPool*>(ptr);
-  pthread_cond_init(&pool->m_condition, NULL);
+  // ???
+  // 这里m_condition为什么还要初始化呢?
+  // pthread_cond_init(&pool->m_condition, NULL);
 
   while (!pool->m_is_stop) {
+    std::function<void()> cb;
+    {
     Mutex::Lock lock(pool->m_mutex);
 
     while (pool->m_tasks.empty()) {
       pthread_cond_wait(&(pool->m_condition), pool->m_mutex.getMutex());
     }
-    std::function<void()> cb = pool->m_tasks.front();
+    cb = pool->m_tasks.front();
     pool->m_tasks.pop();
-    lock.unlock();
+    }
 
     cb();
   }
@@ -50,7 +54,6 @@ void ThreadPool::stop() {
 void ThreadPool::addTask(std::function<void()> cb) {
   Mutex::Lock lock(m_mutex);
   m_tasks.push(cb);
-  lock.unlock();
   pthread_cond_signal(&m_condition);
 }
 
@@ -58,6 +61,13 @@ ThreadPool::~ThreadPool() {
   // for (int i = 0; i < m_size; ++i) {
   //   pthread_join(m_threads[i], nullptr);
   // }
+
+  // ???
+  // 为什么删掉呢？
+  for (int i = 0; i < m_size; ++i) {
+    pthread_join(m_threads[i], nullptr);
+  }
+  pthread_cond_destroy(&m_condition);
 }
 
 }

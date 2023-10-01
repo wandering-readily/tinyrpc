@@ -2,14 +2,17 @@
 #include <google/protobuf/service.h>
 #include <google/protobuf/descriptor.h>
 
-#include "../abstract_dispatcher.h"
-#include "../../comm/error_code.h"
+// #include "../abstract_dispatcher.h"
+#include "tinyrpc/net/abstract_dispatcher.h"
+// #include "../../comm/error_code.h"
+#include "tinyrpc/comm/error_code.h"
 #include "tinypb_data.h"
 #include "tinypb_rpc_dispatcher.h"
 #include "tinypb_rpc_controller.h"
 #include "tinypb_rpc_closure.h"
 #include "tinypb_codec.h"
-#include "../../comm/msg_req.h"
+// #include "../../comm/msg_req.h"
+#include "tinyrpc/comm/msg_req.h"
 
 namespace tinyrpc {
 
@@ -22,6 +25,9 @@ void TinyPbRpcDispacther::dispatch(AbstractData* data, TcpConnection* conn) {
     ErrorLog << "dynamic_cast error";
     return;
   }
+  // 1. 设置当前协程的RunTime
+  // ???
+  // 如果当前msg_req和下面问题一样，为空怎么办?
   Coroutine::GetCurrentCoroutine()->getRunTime()->m_msg_no = tmp->msg_req;
   setCurrentRunTime(Coroutine::GetCurrentCoroutine()->getRunTime());
 
@@ -31,6 +37,7 @@ void TinyPbRpcDispacther::dispatch(AbstractData* data, TcpConnection* conn) {
   std::string service_name;
   std::string method_name;
 
+  // 2. 设置replay.m_msg_no
   TinyPbStruct reply_pk;
   reply_pk.service_full_name = tmp->service_full_name;
   reply_pk.msg_req = tmp->msg_req;
@@ -38,6 +45,8 @@ void TinyPbRpcDispacther::dispatch(AbstractData* data, TcpConnection* conn) {
     reply_pk.msg_req = MsgReqUtil::genMsgNumber();
   }
 
+  // service_full_name = service_name + "." + method_name
+  // 3. 解析service_name, method_name
   if (!parseServiceFullName(tmp->service_full_name, service_name, method_name)) {
     ErrorLog << reply_pk.msg_req << "|parse service name " << tmp->service_full_name << "error";
 
@@ -49,6 +58,7 @@ void TinyPbRpcDispacther::dispatch(AbstractData* data, TcpConnection* conn) {
     return;
   }
 
+  // 4. 寻找已经注册的服务service_ptr
   Coroutine::GetCurrentCoroutine()->getRunTime()->m_interface_name = tmp->service_full_name;
   auto it = m_service_map.find(service_name);
   if (it == m_service_map.end() || !((*it).second)) {
@@ -67,6 +77,7 @@ void TinyPbRpcDispacther::dispatch(AbstractData* data, TcpConnection* conn) {
 
   service_ptr service = (*it).second;
 
+  // 5. google::protobuf操作
   const google::protobuf::MethodDescriptor* method = service->GetDescriptor()->FindMethodByName(method_name);
   if (!method) {
     reply_pk.err_code = ERROR_METHOD_NOT_FOUND;

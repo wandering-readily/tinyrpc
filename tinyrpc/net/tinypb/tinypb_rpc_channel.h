@@ -4,7 +4,7 @@
 #include <memory>
 #include <google/protobuf/service.h>
 #include "tinyrpc/net/net_address.h"
-#include "tinyrpc/net//tcp/tcp_client.h"
+#include "tinyrpc/net/tcp/tcp_client.h"
 
 namespace tinyrpc {
 

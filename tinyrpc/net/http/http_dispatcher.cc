@@ -9,6 +9,7 @@
 
 namespace tinyrpc {
 
+// 分发，派发
 void HttpDispacther::dispatch(AbstractData* data, TcpConnection* conn) {
   HttpRequest* resquest = dynamic_cast<HttpRequest*>(data);
   HttpResponse response;
@@ -17,6 +18,7 @@ void HttpDispacther::dispatch(AbstractData* data, TcpConnection* conn) {
 
   InfoLog << "begin to dispatch client http request, msgno=" << Coroutine::GetCurrentCoroutine()->getRunTime()->m_msg_no;
 
+  // 转发处理方式
   std::string url_path = resquest->m_request_path;
   if (!url_path.empty()) {
     auto it = m_servlets.find(url_path);
@@ -34,12 +36,14 @@ void HttpDispacther::dispatch(AbstractData* data, TcpConnection* conn) {
     }
   }
 
+  // 写入发送内容
   conn->getCodec()->encode(conn->getOutBuffer(), &response);
 
   InfoLog << "end dispatch client http request, msgno=" << Coroutine::GetCurrentCoroutine()->getRunTime()->m_msg_no;
 
 }
 
+// 注册不同URL PATH的不同处理方法
 void HttpDispacther::registerServlet(const std::string& path, HttpServlet::ptr servlet) {
   auto it = m_servlets.find(path);
   if (it == m_servlets.end()) {

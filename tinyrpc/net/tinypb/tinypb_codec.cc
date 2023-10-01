@@ -25,6 +25,9 @@ TinyPbCodeC::~TinyPbCodeC() {
 
 }
 
+// 将TinyPbStruct信息编码
+// TinyPbStruct的int32编码成htonl网络字节序
+//               字符依旧
 void TinyPbCodeC::encode(TcpBuffer* buf, AbstractData* data) {
   if (!buf || !data) {
     ErrorLog << "encode error! buf or data nullptr";
@@ -46,6 +49,7 @@ void TinyPbCodeC::encode(TcpBuffer* buf, AbstractData* data) {
     DebugLog << "succ encode and write to buffer, writeindex=" << buf->writeIndex();
   }
   data = tmp;
+  // encodePbData()返回的const char *字符串是malloc()堆分配的 
   if (re) {
     free((void*)re);
     re = NULL;
@@ -124,6 +128,7 @@ const char* TinyPbCodeC::encodePbData(TinyPbStruct* data, int& len) {
   tmp += data->pb_data.length();
   DebugLog << "pb_data_len= " << data->pb_data.length();
 
+  // 校验和稳定为1
   int32_t checksum = 1;
   int32_t checksum_net = htonl(checksum);
   memcpy(tmp, &checksum_net, sizeof(int32_t));
@@ -164,7 +169,8 @@ void TinyPbCodeC::decode(TcpBuffer* buf, AbstractData* data) {
   for (int i = start_index; i < buf->writeIndex(); ++i) {
     // first find start
     if (tmp[i] == PB_START) {
-      if (i + 1 < buf->writeIndex()) {
+      // if (i + 1 < buf->writeIndex()) {
+      if (i + 1 + 4 < buf->writeIndex()) {
         pk_len = getInt32FromNetByte(&tmp[i+1]);
         DebugLog << "prase pk_len =" << pk_len;
         int j = i + pk_len - 1;
@@ -196,6 +202,7 @@ void TinyPbCodeC::decode(TcpBuffer* buf, AbstractData* data) {
 
   DebugLog << "m_read_buffer size=" << buf->getBufferVector().size() << "rd=" << buf->readIndex() << "wd=" << buf->writeIndex();
 
+  // 解析TinyPbSruct
   // TinyPbStruct pb_struct;
   TinyPbStruct* pb_struct = dynamic_cast<TinyPbStruct*>(data);
   pb_struct->pk_len = pk_len;
@@ -218,6 +225,8 @@ void TinyPbCodeC::decode(TcpBuffer* buf, AbstractData* data) {
   int msg_req_index = msg_req_len_index + sizeof(int32_t);
   DebugLog << "msg_req_len_index= " << msg_req_index;
 
+  // ???
+  // msg_req大小一定会小于50?
   char msg_req[50] = {0};
 
   memcpy(&msg_req[0], &tmp[msg_req_index], pb_struct->msg_req_len);
@@ -267,6 +276,8 @@ void TinyPbCodeC::decode(TcpBuffer* buf, AbstractData* data) {
   DebugLog << "err_info_len = " << pb_struct->err_info_len;
   int err_info_index = err_info_len_index + sizeof(int32_t);
 
+  // ???
+  // err_info大小一定会小于50?
   char err_info[512] = {0};
 
   memcpy(&err_info[0], &tmp[err_info_index], pb_struct->err_info_len);

@@ -13,8 +13,10 @@ void StringUtil::SplitStrToMap(const std::string& str, const std::string& split_
     DebugLog << "str or split_str or joiner_str is empty";
     return;
   }
-  std::string tmp = str;
+  const std::string &tmp = str;
 
+  // [([key_str, join_str, value_str],  split_str),...  [key_str, join_str, value_str]]
+  // 最后一项没有split_str
   std::vector<std::string> vec;
   SplitStrToVector(tmp, split_str, vec);
   for (auto i : vec) {
@@ -38,7 +40,9 @@ void StringUtil::SplitStrToVector(const std::string& str, const std::string& spl
     // DebugLog << "str or split_str is empty";
     return;
   }
+  // 这里已经拷贝了，因此上一级函数不用拷贝std::string str
   std::string tmp = str;
+  // 这里保证如果最后一段不是split_str，那么结果会把str放入vector<std::string> &res
   if (tmp.substr(tmp.length() - split_str.length(), split_str.length()) != split_str) {
     tmp += split_str;
   }

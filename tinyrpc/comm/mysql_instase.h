@@ -1,6 +1,10 @@
 #ifndef TINYRPC_COMM_MYSQL_INSTASE_H
 #define TINYRPC_COMM_MYSQL_INSTASE_H
 
+// 额外增加的#define
+// 只是为了看到MYSQL的操作
+// #define DECLARE_MYSQL_PLUGIN 1
+
 #ifdef DECLARE_MYSQL_PLUGIN 
 #include <mysql/mysql.h>
 #endif

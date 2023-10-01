@@ -14,6 +14,14 @@
 
 namespace tinyrpc {
 
+/*
+ * 对于 MainReactor: 只会注册 listenfd 的可读事件。
+ * 也就是说，不会注册任何 clientfd 到MainReactor 上。
+ * MainReactor 只负责 accept 新连接，而不关心数据交互。
+ * 每 accept 一个fd 后，就把他交给某个 SubReactor.
+ * 
+ * 对于 SubReactor，它注册的是 clientfd，因此它负责跟客户端进行数据交互。
+ */
 enum ReactorType {
   MainReactor = 1,    // main rewactor, only set this by main thread.
   SubReactor = 2      // child reactor, every io thread is this type
@@ -70,6 +78,7 @@ class Reactor {
 
   void delEventInLoopThread(int fd);
   
+// reactor添加epoll_fd, wake_fd, timer, tasks
  private:
   int m_epfd {-1};
   int m_wake_fd {-1};         // wakeup fd

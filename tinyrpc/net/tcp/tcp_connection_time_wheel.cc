@@ -28,6 +28,9 @@ TcpTimeWheel::~TcpTimeWheel() {
 
 void TcpTimeWheel::loopFunc() {
   // DebugLog << "pop src bucket";
+  // timer循环事件
+  // 将front()的std::vector<TcpConnectionSlot::ptr> 退出
+  // 那么AbstractSlot<TcpConnectionSlot>析构时，执行回调函数
   m_wheel.pop();
   std::vector<TcpConnectionSlot::ptr> tmp;
   m_wheel.push(tmp);

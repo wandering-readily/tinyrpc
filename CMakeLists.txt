@@ -1,17 +1,32 @@
 cmake_minimum_required(VERSION 3.0)
 project(tinyrpc)
 
+# PROJECT_SOURCE_DIR ==> 
+#       当使用project命令指定项目名称时，CMake会自动设置PROJECT_SOURCE_DIR的默认值为项目根目录的路径
+
+SET(CMAKE_BUILD_TYPE "Debug") 
+# 添加对gdb的支持
+SET(CMAKE_CXX_FLAGS_DEBUG "$ENV{CXXFLAGS} -O0 -Wall -g2 -ggdb")
+SET(CMAKE_CXX_FLAGS_RELEASE "$ENV{CXXFLAGS} -O3 -Wall")
+
 SET(CMAKE_INSTALL_PREFIX ${PROJECT_SOURCE_DIR})
 enable_language(ASM)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O0 -std=c++11 -Wall -Wno-deprecated -Wno-unused-but-set-variable")
+# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O0 -std=c++11 -Wall -Wno-deprecated -Wno-unused-but-set-variable")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O0 -std=c++17 -Wall -Wno-deprecated -Wno-unused-but-set-variable")
 
 set(PATH_LIB lib)
 set(PATH_BIN bin)
 set(PATH_TESTCASES testcases)
 
+# include_directories  ==>
+#       将指定目录添加到编译器的头文件搜索路径之下，指定的目录被解释成当前源码路径的相对路径
+# include_directories 会为当前CMakeLists.txt的所有目标，以及之后添加的所有子目录的目标添加头文件搜索路径。
+# 因此，慎用target_include_directories，因为会影响全局target。
 include_directories(${PROJECT_SOURCE_DIR})
 # *.cc
+# aux_source_directory(<dir> <variable>)
+# 收集指定目录中所有源文件的名称，并将列表(list)存储在提供的<variable>中
 aux_source_directory(${PROJECT_SOURCE_DIR}/tinyrpc/comm COMM)
 aux_source_directory(${PROJECT_SOURCE_DIR}/tinyrpc/coroutine COR)
 aux_source_directory(${PROJECT_SOURCE_DIR}/tinyrpc/net NET)
@@ -22,6 +37,7 @@ aux_source_directory(${PROJECT_SOURCE_DIR}/tinyrpc/net/tinypb TINYPB)
 set(COXTX ${PROJECT_SOURCE_DIR}/tinyrpc/coroutine/coctx_swap.S)
 
 add_library(tinyrpc ${COMM} ${COR} ${NET} ${HTTP} ${TCP} ${TINYPB} ${COXTX})
+# install用于指定在安装时运行的规则。它可以用来安装很多内容，可以包括目标二进制、动态库、静态库以及文件、目录、脚本等
 install(TARGETS tinyrpc DESTINATION ${PATH_LIB})
 
 

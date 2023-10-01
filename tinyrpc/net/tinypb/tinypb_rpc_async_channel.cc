@@ -71,19 +71,24 @@ void TinyPbRpcAsyncChannel::CallMethod(const google::protobuf::MethodDescriptor*
   std::shared_ptr<TinyPbRpcAsyncChannel> s_ptr = shared_from_this();
 
   auto cb = [s_ptr, method]() mutable {
+    // 1. 完成rpcChannel的callMethod()任务
     DebugLog << "now excute rpc call method by this thread";
     s_ptr->getRpcChannel()->CallMethod(method, s_ptr->getControllerPtr(), s_ptr->getRequestPtr(), s_ptr->getResponsePtr(), NULL);
 
     DebugLog << "excute rpc call method by this thread finish";
 
+    // 2. 回调任务
     auto call_back = [s_ptr]() mutable {
       DebugLog << "async excute rpc call method back old thread";
       // callback function excute in origin thread
       if (s_ptr->getClosurePtr() != nullptr) {
         s_ptr->getClosurePtr()->Run();
       }
+      // rpcChannel()任务完成后 直接作用于wait()函数
       s_ptr->setFinished(true);
 
+      // 这里是为了设置wait()异步等待结果
+      // 从wait()的Yield()地方回去
       if (s_ptr->getNeedResume()) {
         DebugLog << "async excute rpc call method back old thread, need resume";
         Coroutine::Resume(s_ptr->getCurrentCoroutine());
@@ -91,9 +96,12 @@ void TinyPbRpcAsyncChannel::CallMethod(const google::protobuf::MethodDescriptor*
       s_ptr.reset();
     };
 
+    // 本IO线程curIOThread承担还原callback任务
     s_ptr->getIOThread()->getReactor()->addTask(call_back, true);
     s_ptr.reset();
   };
+  // m_pending_cor是寻找的新coroutine(cb函数是cb)
+  // 转换进去m_pending_cor 将作为cb放入任一线程(但是不能在本线程当中)
   m_pending_cor = GetServer()->getIOThreadPool()->addCoroutineToRandomThread(cb, false);
 
 }

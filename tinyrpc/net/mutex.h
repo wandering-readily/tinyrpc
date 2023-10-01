@@ -7,6 +7,7 @@
 #include "tinyrpc/coroutine/coroutine.h"
 
 // this file copy form sylar
+// scoped lock mutex同步错误修改!!!
 
 namespace tinyrpc {
 
@@ -24,24 +25,29 @@ public:
   ~ScopedLockImpl()
   {
     unlock();
+    m_locked = false;
   }
 
   void lock()
   {
-    if (!m_locked)
-    {
-      m_mutex.lock();
-      m_locked = true;
-    }
+    // if (!m_locked)
+    // {
+      // m_mutex.lock();
+      // m_locked = true;
+    // }
+    m_mutex.lock();
+    m_locked = true;
   }
 
   void unlock()
   {
-    if (m_locked)
-    {
-      m_mutex.unlock();
-      m_locked = false;
-    }
+    // if (m_locked)
+    // {
+      // m_mutex.unlock();
+      // m_locked = false;
+    // }
+    m_mutex.unlock();
+    m_locked = false;
   }
 
 private:
@@ -65,24 +71,29 @@ public:
   ~ReadScopedLockImpl()
   {
     unlock();
+    m_locked = false;
   }
 
   void lock()
   {
-    if (!m_locked)
-    {
-      m_mutex.rdlock();
-      m_locked = true;
-    }
+    // if (!m_locked)
+    // {
+      // m_mutex.rdlock();
+      // m_locked = true;
+    // }
+    m_mutex.rdlock();
+    m_locked = true;
   }
 
   void unlock()
   {
-    if (m_locked)
-    {
-      m_mutex.unlock();
-      m_locked = false;
-    }
+    // if (m_locked)
+    // {
+      // m_mutex.unlock();
+      // m_locked = false;
+    // }
+    m_mutex.unlock();
+    m_locked = false;
   }
 
 private:
@@ -109,24 +120,29 @@ public:
   ~WriteScopedLockImpl()
   {
     unlock();
+    m_locked = false;
   }
 
   void lock()
   {
-    if (!m_locked)
-    {
-      m_mutex.wrlock();
-      m_locked = true;
-    }
+    // if (!m_locked)
+    // {
+      // m_mutex.wrlock();
+      // m_locked = true;
+    // }
+    m_mutex.wrlock();
+    m_locked = true;
   }
 
   void unlock()
   {
-    if (m_locked)
-    {
-      m_mutex.unlock();
-      m_locked = false;
-    }
+    // if (m_locked)
+    // {
+      // m_mutex.unlock();
+      // m_locked = false;
+    // }
+    m_mutex.unlock();
+    m_locked = false;
   }
 
 private:

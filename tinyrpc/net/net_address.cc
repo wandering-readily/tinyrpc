@@ -7,7 +7,8 @@
 #include <string.h>
 #include <sstream>
 #include "net_address.h"
-#include "../comm/log.h"
+// #include "../comm/log.h"
+#include "tinyrpc/comm/log.h"
 
 namespace tinyrpc {
 

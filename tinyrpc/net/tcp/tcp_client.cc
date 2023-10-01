@@ -62,14 +62,22 @@ void TcpClient::resetFd() {
 }
 
 int TcpClient::sendAndRecvTinyPb(const std::string& msg_no, TinyPbStruct::pb_ptr& res) {
+  // 设置定时timeout
   bool is_timeout = false;
   tinyrpc::Coroutine* cur_cor = tinyrpc::Coroutine::GetCurrentCoroutine();
+  // 1. 
+  // timercb将在调用时恢复当前环境
+  // 此时timeout
   auto timer_cb = [this, &is_timeout, cur_cor]() {
     InfoLog << "TcpClient timer out event occur";
+    // is_timeout设置，且m_connection也设置超时
     is_timeout = true;
     this->m_connection->setOverTimeFlag(true); 
     tinyrpc::Coroutine::Resume(cur_cor);
   };
+  // 将超时恢复环境任务存放在m_reactor->getTimer()
+  // ???
+  // 是否应该增加超时重连机制?
   TimerEvent::ptr event = std::make_shared<TimerEvent>(m_max_timeout, false, timer_cb);
   m_reactor->getTimer()->addTimerEvent(event);
 
@@ -78,26 +86,34 @@ int TcpClient::sendAndRecvTinyPb(const std::string& msg_no, TinyPbStruct::pb_ptr
   while (!is_timeout) {
     DebugLog << "begin to connect";
     if (m_connection->getState() != Connected) {
+      // 如果当前m_connection未连接，重连
       int rt = connect_hook(m_fd, reinterpret_cast<sockaddr*>(m_peer_addr->getSockAddr()), m_peer_addr->getSockLen());
       if (rt == 0) {
         DebugLog << "connect [" << m_peer_addr->toString() << "] succ!";
+        // 设置已连接
         m_connection->setUpClient();
         break;
       }
+      // 重连失败后重置FD
       resetFd();
       if (is_timeout) {
+        // m_connection超时后仍未连接上
         InfoLog << "connect timeout, break";
         goto err_deal;
       }
       if (errno == ECONNREFUSED) {
+        // peer addr拒绝连接
+        // 返回连接失败
         std::stringstream ss;
         ss << "connect error, peer[ " << m_peer_addr->toString() <<  " ] closed.";
         m_err_info = ss.str();
         ErrorLog << "cancle overtime event, err info=" << m_err_info;
+        // 删除之前的定时事件
         m_reactor->getTimer()->delTimerEvent(event);
         return ERROR_PEER_CLOSED;
       }
       if (errno == EAFNOSUPPORT) {
+        // protocol family不支持
         std::stringstream ss;
         ss << "connect cur sys ror, errinfo is " << std::string(strerror(errno)) <<  " ] closed.";
         m_err_info = ss.str();
@@ -120,6 +136,7 @@ int TcpClient::sendAndRecvTinyPb(const std::string& msg_no, TinyPbStruct::pb_ptr
   }
 
   m_connection->setUpClient();
+  // 写输出事件
   m_connection->output();
   if (m_connection->getOverTimerFlag()) {
     InfoLog << "send data over time";
@@ -127,6 +144,7 @@ int TcpClient::sendAndRecvTinyPb(const std::string& msg_no, TinyPbStruct::pb_ptr
     goto err_deal;
   }
 
+  // 如果没收到回复，那么一直等待
   while (!m_connection->getResPackageData(msg_no, res)) {
     DebugLog << "redo getResPackageData";
     m_connection->input();

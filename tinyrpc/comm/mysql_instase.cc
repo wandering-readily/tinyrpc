@@ -1,3 +1,6 @@
+// 额外增加的#define
+// 只是为了看到MYSQL的操作
+// #define DECLARE_MYSQL_PLUGIN 1
 
 #ifdef DECLARE_MYSQL_PLUGIN 
 #include <mysql/mysql.h>
@@ -28,6 +31,8 @@ MySQLThreadInit::~MySQLThreadInit() {
   DebugLog << ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> call mysql_thread_end";
 }
 
+// 每个thread一个单例线程!
+// 这样保证多线程服务
 MySQLInstaseFactroy* MySQLInstaseFactroy::GetThreadMySQLFactory() {
   if (t_mysql_factory) {
     return t_mysql_factory;
@@ -38,6 +43,7 @@ MySQLInstaseFactroy* MySQLInstaseFactroy::GetThreadMySQLFactory() {
 }
 
 MySQLInstase::ptr MySQLInstaseFactroy::GetMySQLInstase(const std::string& key) {
+  // 因为是m_mysql_option在读取DBConfig后只读，因此可以多线程服务
   auto it2 = gRpcConfig->m_mysql_options.find(key);
   if (it2 == gRpcConfig->m_mysql_options.end()) {
     ErrorLog << "get MySQLInstase error, not this key[" << key << "] exist";
@@ -50,6 +56,7 @@ MySQLInstase::ptr MySQLInstaseFactroy::GetMySQLInstase(const std::string& key) {
 
 
 MySQLInstase::MySQLInstase(const MySQLOption& option) : m_option(option) {
+  // MYSQL instance初始化情况
   int ret = reconnect();
   if (ret != 0) {
     return;
@@ -63,6 +70,8 @@ int MySQLInstase::reconnect() {
   // this static value only call once
   // it will call mysql_thread_init when first call MySQLInstase::reconnect function
   // and it will call mysql_thread_end when current thread destroy
+  // 也就是第一次进入这个函数载入构造函数
+  // 线程结束时载入析构函数
   static thread_local MySQLThreadInit t_mysql_thread_init;
 
   if (m_sql_handler) {
@@ -70,10 +79,13 @@ int MySQLInstase::reconnect() {
     m_sql_handler = NULL;
   }
 
+  // ???
+  // 为什么获取mysql_handler需要加锁！
+  {
   Mutex::Lock lock(m_mutex);
   m_sql_handler =  mysql_init(NULL);
   // DebugLog << "mysql fd is " << m_sql_handler.net.fd;
-  lock.unlock();
+  }
   if (!m_sql_handler) {
     ErrorLog << "faild to call mysql_init allocate MYSQL instase";
     return -1;
@@ -108,6 +120,7 @@ MySQLInstase::~MySQLInstase() {
   }
 }
 
+// 1. 问答
 int MySQLInstase::commit() {
   int rt = query("COMMIT;");
   if (rt == 0) {
@@ -151,6 +164,7 @@ int MySQLInstase::query(const std::string& sql) {
   if (rt != 0) {
     ErrorLog << "excute mysql_real_query error, sql[" << sql << "], mysql sys errinfo[" << mysql_error(m_sql_handler) << "]"; 
     // if connect error, begin to reconnect
+    // 如果问询mysql发生server error，可以再次连接server问答
     if (mysql_errno(m_sql_handler) == CR_SERVER_GONE_ERROR || mysql_errno(m_sql_handler) == CR_SERVER_LOST) {
       
       rt = reconnect();
@@ -166,6 +180,7 @@ int MySQLInstase::query(const std::string& sql) {
   return rt;
 }
 
+// 2. 结果查询
 MYSQL_RES* MySQLInstase::storeResult() {
   if (!m_init_succ) {
     ErrorLog << "query error, mysql_handler init faild";
@@ -227,6 +242,7 @@ long long MySQLInstase::affectedRows() {
 }
 
 
+// 错误信息获取
 std::string MySQLInstase::getMySQLErrorInfo() {
   return std::string(mysql_error(m_sql_handler));
 }

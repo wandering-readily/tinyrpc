@@ -6,8 +6,8 @@
 
 namespace tinyrpc {
 
-TcpBuffer::TcpBuffer(int size) {
-	m_buffer.resize(size);	
+TcpBuffer::TcpBuffer(int size) : m_buffer(std::vector<char> (size)) {
+	// m_buffer.resize(size);	
 }
 
 
@@ -44,6 +44,7 @@ int TcpBuffer::writeIndex() const {
 	// return rt;
 // }
 
+// 会损失已读的字符
 void TcpBuffer::resizeBuffer(int size) {
   std::vector<char> tmp(size);
   int c = std::min(size, readAble());
@@ -57,7 +58,10 @@ void TcpBuffer::resizeBuffer(int size) {
 
 void TcpBuffer::writeToBuffer(const char* buf, int size) {
 	if (size > writeAble()) {
+    // 新的buffer_size = 1.5 * (m_write_index + write_size)
+    // 保证了new_size > readAble()
     int new_size = (int)(1.5 * (m_write_index + size));
+    // resizeBuffer()会损失已经读的字符
 		resizeBuffer(new_size);
 	}
 	memcpy(&m_buffer[m_write_index], buf, size);
@@ -78,6 +82,7 @@ void TcpBuffer::readFromBuffer(std::vector<char>& re, int size) {
   memcpy(&tmp[0], &m_buffer[m_read_index], read_size);
   re.swap(tmp);
   m_read_index += read_size;
+  // 调整已读字符，已读字符会被删除
   adjustBuffer();
 
 }
@@ -94,7 +99,8 @@ void TcpBuffer::adjustBuffer() {
     m_buffer.swap(new_buffer);
     m_write_index = count;
     m_read_index = 0;
-    new_buffer.clear();
+    // new_buffer自身会释放
+    // new_buffer.clear();
 
   }
 
@@ -110,6 +116,7 @@ void TcpBuffer::clearBuffer() {
   m_write_index = 0;
 }
 
+// 往前移动index，往前移动后的位置必须小于m_buffer.size()
 void TcpBuffer::recycleRead(int index) {
   int j = m_read_index + index;
   if (j > (int)m_buffer.size()) {
@@ -117,6 +124,10 @@ void TcpBuffer::recycleRead(int index) {
     return;
   }
   m_read_index = j;
+  if(m_write_index < m_read_index) {
+    m_write_index = m_read_index;
+  }
+  // 如果移动的位置超过m_write_index呢，count可能变为负数
   adjustBuffer();
 }
 
@@ -142,6 +153,9 @@ std::string TcpBuffer::getBufferString() {
   return re;
 }
 
+// !!!
+// ???
+// 注意这里会拷贝m_buffer内容
 std::vector<char> TcpBuffer::getBufferVector() {
   return m_buffer;
 }

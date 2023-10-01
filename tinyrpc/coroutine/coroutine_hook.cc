@@ -11,6 +11,12 @@
 #include "tinyrpc/comm/log.h"
 #include "tinyrpc/comm/config.h"
 
+// name ==> read
+// name##_fun_ptr_t ==> read_fun_ptr_t ==> typedef ssize_t (*read_fun_ptr_t)(int fd, void *buf, size_t count);
+// name##_fun_ptr_t是函数类型
+// dlsym ==> 从共享库（动态库）中获取符号（全局变量与函数符号）地址，通常用于获取函数符号地址
+// RTLD_DEFAULT表示按默认的顺序搜索共享库中符号symbol第一次出现的地址
+// RTLD_NEXT表示在当前库以后按默认的顺序搜索共享库中符号symbol第一次出现的地址
 #define HOOK_SYS_FUNC(name) name##_fun_ptr_t g_sys_##name##_fun = (name##_fun_ptr_t)dlsym(RTLD_NEXT, #name);
 
 
@@ -35,6 +41,7 @@ void SetHook(bool value) {
 	g_hook = value;
 }
 
+// 查看监听事件
 void toEpoll(tinyrpc::FdEvent::ptr fd_event, int events) {
 	
 	tinyrpc::Coroutine* cur_cor = tinyrpc::Coroutine::GetCurrentCoroutine() ;
@@ -63,6 +70,8 @@ void toEpoll(tinyrpc::FdEvent::ptr fd_event, int events) {
 
 ssize_t read_hook(int fd, void *buf, size_t count) {
 	DebugLog << "this is hook read";
+  // 主协程直接调用系统函数
+  // 否则要在reactor上监听
   if (tinyrpc::Coroutine::IsMainCoroutine()) {
     DebugLog << "hook disable, call sys read func";
     return g_sys_read_fun(fd, buf, count);
@@ -92,10 +101,13 @@ ssize_t read_hook(int fd, void *buf, size_t count) {
     return n;
   } 
 
+	// 设置当前协程事件
 	toEpoll(fd_event, tinyrpc::IOEvent::READ);
 
 	DebugLog << "read func to yield";
+	// 退出当前协程
 	tinyrpc::Coroutine::Yield();
+	// 换函数栈，等再一次Resume(*Coroutine)，再次进入这个位置
 
 	fd_event->delListenEvents(tinyrpc::IOEvent::READ);
 	fd_event->clearCoroutine();
@@ -302,6 +314,7 @@ unsigned int sleep_hook(unsigned int seconds) {
 extern "C" {
 
 
+// 如果设置了钩子，那么使用accept_hook，否则使用g_sys_fun=>从共享库中调用系统函数
 int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen) {
 	if (!tinyrpc::g_hook) {
 		return g_sys_accept_fun(sockfd, addr, addrlen);

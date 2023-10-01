@@ -23,6 +23,16 @@ class TinyPbStruct : public AbstractData {
   **  min of package is: 1 + 4 + 4 + 4 + 4 + 4 + 4 + 1 = 26 bytes
   **
   */
+
+  /* 
+   * package_len，                            数据包长度pk_len
+   * msg_req_len, msg_req                     msg信息 
+   * service_name_len, service_full_name      服务service信息
+   * err_code                                 错误代码
+   * err_info_len, err_info                   错误信息
+   * pb_data                                  数据报具体信息
+   * check_num                                检验码
+   */
   
   // char start;                      // indentify start of a TinyPb protocal data
   int32_t pk_len {0};                 // len of all package(include start char and end char)

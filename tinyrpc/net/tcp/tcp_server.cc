@@ -127,8 +127,10 @@ TcpServer::TcpServer(NetAddress::ptr addr, ProtocalType type /*= TinyPb_Protocal
 	m_main_reactor = tinyrpc::Reactor::GetReactor();
 	m_main_reactor->setReactorType(MainReactor);
 
+	// 时间轮存放定时事件
 	m_time_wheel = std::make_shared<TcpTimeWheel>(m_main_reactor, gRpcConfig->m_timewheel_bucket_num, gRpcConfig->m_timewheel_inteval);
 
+	// 绑定删除clients过时连接
 	m_clear_clent_timer_event = std::make_shared<TimerEvent>(10000, true, std::bind(&TcpServer::ClearClientTimerFunc, this));
 	m_main_reactor->getTimer()->addTimerEvent(m_clear_clent_timer_event);
 
@@ -139,6 +141,7 @@ void TcpServer::start() {
 
 	m_acceptor.reset(new TcpAcceptor(m_addr));
   m_acceptor->init();
+	// 得到当前coroutine，并且设置回调函数
 	m_accept_cor = GetCoroutinePool()->getCoroutineInstanse();
 	m_accept_cor->setCallBack(std::bind(&TcpServer::MainAcceptCorFunc, this));
 
@@ -151,6 +154,7 @@ void TcpServer::start() {
 }
 
 TcpServer::~TcpServer() {
+	// 还回m_acceptor_coroutine
 	GetCoroutinePool()->returnCoroutine(m_accept_cor);
   DebugLog << "~TcpServer";
 }
@@ -160,6 +164,7 @@ void TcpServer::MainAcceptCorFunc() {
 
   while (!m_is_stop_accept) {
 
+	// 接收连接
     int fd = m_acceptor->toAccept();
     if (fd == -1) {
       ErrorLog << "accept ret -1 error, return, to yield";
@@ -167,6 +172,7 @@ void TcpServer::MainAcceptCorFunc() {
       continue;
     }
     IOThread *io_thread = m_io_pool->getIOThread();
+		// 重置IOThreadPool的IOThread，生成新的TcpConnection
 		TcpConnection::ptr conn = addClient(io_thread, fd);
 		conn->initServer();
 		DebugLog << "tcpconnection address is " << conn.get() << ", and fd is" << fd;
@@ -176,6 +182,8 @@ void TcpServer::MainAcceptCorFunc() {
 		// 	conn.reset();
     // };
 
+	// ???
+	// 这是什么操作?
     io_thread->getReactor()->addCoroutine(conn->getCoroutine());
     m_tcp_counts++;
     DebugLog << "current tcp connection count is [" << m_tcp_counts << "]";
@@ -187,6 +195,7 @@ void TcpServer::addCoroutine(Coroutine::ptr cor) {
 	m_main_reactor->addCoroutine(cor);
 }
 
+// 注册service
 bool TcpServer::registerService(std::shared_ptr<google::protobuf::Service> service) {
 	if (m_protocal_type == TinyPb_Protocal) {
 		if (service) {
@@ -202,6 +211,7 @@ bool TcpServer::registerService(std::shared_ptr<google::protobuf::Service> servi
 	return true;
 }
 
+// 注册HTTP服务
 bool TcpServer::registerHttpServlet(const std::string& url_path, HttpServlet::ptr servlet) {
 	if (m_protocal_type == Http_Protocal) {
 		if (servlet) {
@@ -237,9 +247,11 @@ TcpConnection::ptr TcpServer::addClient(IOThread* io_thread, int fd) {
 
 
 
+// 重新添加slot任务
 void TcpServer::freshTcpConnection(TcpTimeWheel::TcpConnectionSlot::ptr slot) {
 	auto cb = [slot, this]() mutable {
 		this->getTimeWheel()->fresh(slot);	
+		// 减少slot的增持方，这段task代码执行后剩下timewheel拥有原内容
 		slot.reset();
 	};
 	m_main_reactor->addTask(cb);

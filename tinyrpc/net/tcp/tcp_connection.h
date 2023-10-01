@@ -24,10 +24,10 @@ class TcpClient;
 class IOThread;
 
 enum TcpConnectionState {
-	NotConnected = 1,		// can do io
-	Connected = 2,		// can do io
+	NotConnected = 1,		  // can do io
+	Connected = 2,		    // can do io
 	HalfClosing = 3,			// server call shutdown, write half close. can read,but can't write
-	Closed = 4,				// can't do io
+	Closed = 4,				    // can't do io
 };
 
 

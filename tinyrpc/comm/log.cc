@@ -38,14 +38,17 @@ extern tinyrpc::Config::ptr gRpcConfig;
 static std::atomic_int64_t g_rpc_log_index {0};
 static std::atomic_int64_t g_app_log_index {0};
 
+// flush，然后回收异步处理线程
 void CoredumpHandler(int signal_no) {
   ErrorLog << "progress received invalid signal, will exit";
   printf("progress received invalid signal, will exit\n");
-  gRpcLogger->flush();
+  gRpcLogger->stopAndFlush();
   pthread_join(gRpcLogger->getAsyncLogger()->m_thread, NULL);
   pthread_join(gRpcLogger->getAsyncAppLogger()->m_thread, NULL);
 
+  // 设置默认处理signal_no的信号处理函数
   signal(signal_no, SIG_DFL);
+  // 发起信号
   raise(signal_no);
 }
 
@@ -63,6 +66,8 @@ pid_t gettid() {
   return t_thread_id;
 }
 
+// ?为什么删除呢
+// 原来是没使用啊
 void setLogLevel(LogLevel level) {
   // g_log_level = level;
 }
@@ -149,6 +154,7 @@ std::stringstream& LogEvent::getStringStream() {
 
   // time_t now_time = m_timestamp;
   
+  // 1. 当前时间
   gettimeofday(&m_timeval, nullptr);
 
   struct tm time; 
@@ -163,16 +169,20 @@ std::stringstream& LogEvent::getStringStream() {
   std::string s_level = levelToString(m_level);
   m_ss << "[" << s_level << "]\t";
 
+  // 2. 当前进程号
+  // 因为getpid()每次得到相同值，且我们不在乎不在乎值的先后顺序
   if (g_pid == 0) {
     g_pid = getpid();
   }
   m_pid = g_pid;  
 
+  // 3. 当前线程号
   if (t_thread_id == 0) {
     t_thread_id = gettid();
   }
   m_tid = t_thread_id;
 
+  // 4. 当前协程号
   m_cor_id = Coroutine::GetCurrentCoroutine()->getCorId();
   
   m_ss << "[" << m_pid << "]\t" 
@@ -181,6 +191,7 @@ std::stringstream& LogEvent::getStringStream() {
     << "[" << m_file_name << ":" << m_line << "]\t";
     // << "[" << m_func_name << "]\t";
   RunTime* runtime = getCurrentRunTime();
+  // ?当前协程运行时间
   if (runtime) {
     std::string msgno = runtime->m_msg_no;
     if (!msgno.empty()) {
@@ -201,6 +212,8 @@ std::string LogEvent::toString() {
   return getStringStream().str();
 }
 
+// ?
+// 竟然是输出在Logger的buffer里面，不是直接打印？
 void LogEvent::log() {
   m_ss << "\n";
   if (m_level >= gRpcConfig->m_log_level && m_type == RPC_LOG) {
@@ -229,9 +242,12 @@ Logger::Logger() {
 }
 
 Logger::~Logger() {
-  flush();
-  pthread_join(m_async_rpc_logger->m_thread, NULL);
-  pthread_join(m_async_app_logger->m_thread, NULL);
+  stopAndFlush();
+  // ???
+  // 由Logger回收内存是不是不太好?
+  // AsuncLogger回收是不是符合RAII定义?
+  // pthread_join(m_async_rpc_logger->m_thread, NULL);
+  // pthread_join(m_async_app_logger->m_thread, NULL);
 }
 
 Logger* Logger::GetLogger() {
@@ -248,9 +264,11 @@ void Logger::init(const char* file_name, const char* file_path, int max_size, in
     // m_app_buffer.resize(1000000);
     // m_buffer.resize(1000000);
 
+    // 启动Async保存日志程序
     m_async_rpc_logger = std::make_shared<AsyncLogger>(file_name, file_path, max_size, RPC_LOG);
     m_async_app_logger = std::make_shared<AsyncLogger>(file_name, file_path, max_size, APP_LOG);
 
+    // 设置信号处理函数
     signal(SIGSEGV, CoredumpHandler);
     signal(SIGABRT, CoredumpHandler);
     signal(SIGTERM, CoredumpHandler);
@@ -264,6 +282,8 @@ void Logger::init(const char* file_name, const char* file_path, int max_size, in
   }
 }
 
+// ???
+// 加入reactor
 void Logger::start() {
   TimerEvent::ptr event = std::make_shared<TimerEvent>(m_sync_inteval, true, std::bind(&Logger::loopFunc, this));
   Reactor::GetReactor()->getTimer()->addTimerEvent(event);
@@ -271,15 +291,18 @@ void Logger::start() {
 	
 void Logger::loopFunc() {
   std::vector<std::string> app_tmp;
+  {
   Mutex::Lock lock1(m_app_buff_mutex);
   app_tmp.swap(m_app_buffer);
-  lock1.unlock();
+  }
   
   std::vector<std::string> tmp;
+  {
   Mutex::Lock lock2(m_buff_mutex);
   tmp.swap(m_buffer);
-  lock2.unlock();
+  }
 
+  // 添加async内容
   m_async_rpc_logger->push(tmp);
   m_async_app_logger->push(app_tmp);
 }
@@ -287,16 +310,14 @@ void Logger::loopFunc() {
 void Logger::pushRpcLog(const std::string& msg) {
   Mutex::Lock lock(m_buff_mutex);
   m_buffer.push_back(std::move(msg));
-  lock.unlock();
 }
 
 void Logger::pushAppLog(const std::string& msg) {
   Mutex::Lock lock(m_app_buff_mutex);
   m_app_buffer.push_back(std::move(msg));
-  lock.unlock();
 }
 
-void Logger::flush() {
+void Logger::stopAndFlush() {
   loopFunc();
   m_async_rpc_logger->stop();
   m_async_rpc_logger->flush();
@@ -307,6 +328,8 @@ void Logger::flush() {
 
 AsyncLogger::AsyncLogger(const char* file_name, const char* file_path, int max_size, LogType logtype)
   : m_file_name(file_name), m_file_path(file_path), m_max_size(max_size), m_log_type(logtype) {
+  // sem_init()初始化
+  // sem作为同步工具
   int rt = sem_init(&m_semaphore, 0, 0);
   assert(rt == 0);
 
@@ -318,7 +341,9 @@ AsyncLogger::AsyncLogger(const char* file_name, const char* file_path, int max_s
 }
 
 AsyncLogger::~AsyncLogger() {
-
+  pthread_cond_destroy(&m_condition);
+  pthread_join(m_thread, NULL);
+  sem_destroy(&m_semaphore);
 }
 
 void* AsyncLogger::excute(void* arg) {
@@ -326,21 +351,26 @@ void* AsyncLogger::excute(void* arg) {
   int rt = pthread_cond_init(&ptr->m_condition, NULL);
   assert(rt == 0);
 
+  // 确保创建线程后的pthread_cond_init()之后才完成构造
   rt = sem_post(&ptr->m_semaphore);
   assert(rt == 0);
 
   while (1) {
+    std::vector<std::string> tmp;
+    bool is_stop = false;
+    // 1. 取任务
+    {
     Mutex::Lock lock(ptr->m_mutex);
 
     while (ptr->m_tasks.empty() && !ptr->m_stop) {
       pthread_cond_wait(&(ptr->m_condition), ptr->m_mutex.getMutex());
     }
-    std::vector<std::string> tmp;
     tmp.swap(ptr->m_tasks.front());
     ptr->m_tasks.pop();
-    bool is_stop = ptr->m_stop;
-    lock.unlock();
+    is_stop = ptr->m_stop;
+    }
 
+    // 2. 添加日志内容
     timeval now;
     gettimeofday(&now, nullptr);
 
@@ -353,23 +383,32 @@ void* AsyncLogger::excute(void* arg) {
     if (ptr->m_date != std::string(date)) {
       // cross day
       // reset m_no m_date
+      // 重置
+      // 隔天换日志文件
       ptr->m_no = 0;
       ptr->m_date = std::string(date);
       ptr->m_need_reopen = true;
     }
 
+    // 确保第一次打开文件错误时，下次输入内容时再次打开文件
     if (!ptr->m_file_handle) {
       ptr->m_need_reopen = true;
     }    
 
-    std::stringstream ss;
-    ss << ptr->m_file_path << ptr->m_file_name << "_" << ptr->m_date << "_" << LogTypeToString(ptr->m_log_type) << "_" << ptr->m_no << ".log";
-    std::string full_file_name = ss.str();
+    // 日志文件名字
+    std::string full_file_name;
 
     if (ptr->m_need_reopen) {
+      // 有两种可能：1. 日志文件满了；  2. 日志文件没打开
+      // 因此多加判断
       if (ptr->m_file_handle) {
         fclose(ptr->m_file_handle);
       }
+
+      std::stringstream ss;
+      ss << ptr->m_file_path << ptr->m_file_name << "_" << ptr->m_date << "_" 
+        << LogTypeToString(ptr->m_log_type) << "_" << ptr->m_no << ".log";
+      full_file_name = ss.str();
 
       ptr->m_file_handle = fopen(full_file_name.c_str(), "a");
       if(ptr->m_file_handle == nullptr) {
@@ -378,13 +417,14 @@ void* AsyncLogger::excute(void* arg) {
       ptr->m_need_reopen = false;
     }
 
-    if (ftell(ptr->m_file_handle) > ptr->m_max_size) {
+    if (ptr->m_file_handle && ftell(ptr->m_file_handle) > ptr->m_max_size) {
       fclose(ptr->m_file_handle);
 
       // single log file over max size
       ptr->m_no++;
       std::stringstream ss2;
-      ss2 << ptr->m_file_path << ptr->m_file_name << "_" << ptr->m_date << "_" << LogTypeToString(ptr->m_log_type) << "_" << ptr->m_no << ".log";
+      ss2 << ptr->m_file_path << ptr->m_file_name << "_" << ptr->m_date << "_" 
+        << LogTypeToString(ptr->m_log_type) << "_" << ptr->m_no << ".log";
       full_file_name = ss2.str();
 
       // printf("open file %s", full_file_name.c_str());
@@ -394,21 +434,26 @@ void* AsyncLogger::excute(void* arg) {
 
     if (!ptr->m_file_handle) {
       printf("open log file %s error!", full_file_name.c_str());
+    } else {
+
+      for(auto i : tmp) {
+        if (!i.empty()) {
+          fwrite(i.c_str(), 1, i.length(), ptr->m_file_handle);
+        }
+      }
+      // tmp.clear();
+      fflush(ptr->m_file_handle);
     }
 
-    for(auto i : tmp) {
-      if (!i.empty()) {
-        fwrite(i.c_str(), 1, i.length(), ptr->m_file_handle);
-      }
-    }
-    tmp.clear();
-    fflush(ptr->m_file_handle);
     if (is_stop) {
       break;
     }
 
   }
-  if (!ptr->m_file_handle) {
+  // ???
+  // 源代码 if (!ptr->m_file_handle)
+  // 这里难道不是FILR*存在才关闭吗?
+  if (ptr->m_file_handle) {
     fclose(ptr->m_file_handle);
   }
 
@@ -418,11 +463,12 @@ void* AsyncLogger::excute(void* arg) {
 
 
 
+// ???
+// 不是fixed queue，因此可能有超出内存的风险
 void AsyncLogger::push(std::vector<std::string>& buffer) {
   if (!buffer.empty()) {
     Mutex::Lock lock(m_mutex);
     m_tasks.push(buffer);
-    lock.unlock();
     pthread_cond_signal(&m_condition);
   }
 }
@@ -447,8 +493,9 @@ void Exit(int code) {
   #endif
 
   printf("It's sorry to said we start TinyRPC server error, look up log file to get more deatils!\n");
-  gRpcLogger->flush();
+  gRpcLogger->stopAndFlush();
   pthread_join(gRpcLogger->getAsyncLogger()->m_thread, NULL);
+  pthread_join(gRpcLogger->getAsyncAppLogger()->m_thread, NULL);
 
   _exit(code);
 }

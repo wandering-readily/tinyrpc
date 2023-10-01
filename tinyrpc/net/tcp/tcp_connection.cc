@@ -59,7 +59,8 @@ void TcpConnection::registerToTimeWheel() {
   auto cb = [] (TcpConnection::ptr conn) {
     conn->shutdownConnection();
   };
-  TcpTimeWheel::TcpConnectionSlot::ptr tmp = std::make_shared<AbstractSlot<TcpConnection>>(shared_from_this(), cb);
+  TcpTimeWheel::TcpConnectionSlot::ptr tmp = 
+      std::make_shared<AbstractSlot<TcpConnection>>(shared_from_this(), cb);
   m_weak_slot = tmp;
   m_tcp_svr->freshTcpConnection(tmp);
 
@@ -315,9 +316,10 @@ AbstractCodeC::ptr TcpConnection::getCodec() const {
 
 TcpConnectionState TcpConnection::getState() {
   TcpConnectionState state;
+  {
   RWMutex::ReadLock lock(m_mutex);
   state = m_state;
-  lock.unlock();
+  }
 
   return state;
 }
@@ -325,7 +327,6 @@ TcpConnectionState TcpConnection::getState() {
 void TcpConnection::setState(const TcpConnectionState& state) {
   RWMutex::WriteLock lock(m_mutex);
   m_state = state;
-  lock.unlock(); 
 }
 
 void TcpConnection::setOverTimeFlag(bool value) {

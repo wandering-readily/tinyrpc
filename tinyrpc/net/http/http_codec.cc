@@ -131,6 +131,13 @@ void HttpCodeC::decode(TcpBuffer* buf, AbstractData* data) {
 }
 
 
+/*
+ * 请求方法    空格
+ * 资源路径    空格
+ * HTTP版本
+ * CRLF（回车换行CRLF） 
+ * GET http://www.xyz.edu.com/dir/index.htm HTTP/1.1
+ */
 bool HttpCodeC::parseHttpRequestLine(HttpRequest* requset, const std::string& tmp) {
   size_t s1 = tmp.find_first_of(" ");
   size_t s2 = tmp.find_last_of(" ");
@@ -152,6 +159,7 @@ bool HttpCodeC::parseHttpRequestLine(HttpRequest* requset, const std::string& tm
 
   std::string version = tmp.substr(s2 + 1, tmp.length() - s2 - 1);
   std::transform(version.begin(), version.end(), version.begin(), toupper);
+  // 只支持HTTP/1.1 和 HTTP/1.0
   if (version != "HTTP/1.1" && version != "HTTP/1.0") {
     ErrorLog << "parse http request request line error, not support http version:" << version;
     return false;
@@ -170,18 +178,24 @@ bool HttpCodeC::parseHttpRequestLine(HttpRequest* requset, const std::string& tm
   if (j == url.npos) {
     DebugLog << "url only have path, url is" << url;
   } else {
+    // s2 - s1 - 1 (http line)
+    //             - (j + 3) (http(s)://)
+    // url是定位符位置
     url = url.substr(j + 3, s2 - s1  - j - 4);
     DebugLog << "delete http prefix, url = " << url;
+    // 顶级域名后的/位置
     j = url.find_first_of("/");
     l = url.length();
     if (j == url.npos || j == url.length() - 1) {
       DebugLog << "http request root path, and query is empty";
       return true;
     }
+    // 实际的定位符位置
     url = url.substr(j + 1, l - j - 1);
   }
 
   l = url.length();
+  // 请求的位置
   j = url.find_first_of("?");
   if (j == url.npos) {
     requset->m_request_path = url;

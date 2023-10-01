@@ -13,6 +13,7 @@ typedef int (*connect_fun_ptr_t)(int sockfd, const struct sockaddr *addr, sockle
 
 typedef int (*accept_fun_ptr_t)(int sockfd, struct sockaddr *addr, socklen_t *addrlen);
 
+// namespace tinyrpc没有设置这个钩子
 typedef int (*socket_fun_ptr_t)(int domain, int type, int protocol);
 
 typedef int (*sleep_fun_ptr_t)(unsigned int seconds);
@@ -30,6 +31,7 @@ int connect_hook(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
 
 unsigned int sleep_hook(unsigned int seconds);
 
+// 设置是否有钩子
 void SetHook(bool);
 
 }

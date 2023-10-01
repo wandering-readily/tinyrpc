@@ -72,6 +72,8 @@ void TinyPbRpcChannel::CallMethod(const google::protobuf::MethodDescriptor* meth
   InfoLog << "============================================================";
   m_client->setTimeout(rpc_controller->Timeout());
 
+  // !!!
+  // 关键函数，从pb_struct.msg_req序列中获得返回数据
   TinyPbStruct::pb_ptr res_data;
   int rt = m_client->sendAndRecvTinyPb(pb_struct.msg_req, res_data);
   if (rt != 0) {
