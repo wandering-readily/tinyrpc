@@ -38,7 +38,8 @@ class Config {
   TiXmlElement* getXmlNode(const std::string& name);
 
 private:
-  void printErrorIfExist(TiXmlElement *, const char *);
+  void printNodeAndGetTextErrorIfExist(TiXmlElement *, const char *);
+  void printNodeErrorIfExist(TiXmlElement *, const char *);
 
 
  public:
