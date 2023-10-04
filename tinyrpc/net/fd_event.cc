@@ -54,6 +54,9 @@ std::function<void()> FdEvent::getCallBack(IOEvent flag) const {
   return nullptr;
 }
 
+// FdEvent::addListenEvents
+// FdEvent::delListenEvents
+// 这俩个事件可以保证多线程安全
 void FdEvent::addListenEvents(IOEvent event) {
   if (m_listen_events & event) {
     DebugLog << "already has this event, skip";

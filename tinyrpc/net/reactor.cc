@@ -86,6 +86,8 @@ Reactor* Reactor::GetReactor() {
  * 事件池操作  ==>  一个线程一个reactor，而reactor的操作可能会由其它线程调用
  * 添加事件    ==>  addEvent()
  * 删除事件    ==>  delEvent()
+ * 如果在本线程，那么直接epoll_ctl()
+ * 否则，将根据事件内容放入m_pending_add_fds, m_pending_del_fds
  * 
  */
 // call by other threads, need lock
@@ -351,9 +353,13 @@ void Reactor::loop() {
               ErrorLog << "socket [" << fd << "] occur other unknow event:[" << one_event.events << "], need unregister this socket";
               delEventInLoopThread(fd);
             } else {
-              // 如果FdEvent关联了Croutine
-              // ==> 那么FdEvent有任务在coroutine要处理
               // if register coroutine, pengding coroutine to common coroutine_tasks
+
+              // 如果FdEvent关联了Croutine
+              // read/write_hook()函数管理coroutine，
+              // 实际在调用的toEpoll()函数中fd_event->setCoroutine(cur_cor)设置
+              // 在fd_event->clearCoroutine()清除异步标志
+              // 这样就能产生异步效果
               if (ptr->getCoroutine()) {
                 // the first one coroutine when epoll_wait back, just directly resume by this thread, not add to global CoroutineTaskQueue
                 // because every operate CoroutineTaskQueue should add mutex lock
@@ -364,20 +370,20 @@ void Reactor::loop() {
                   continue;
                 }
                 if (m_reactor_type == SubReactor) {
-                  // 如果是子reactor的内容
-                  // 从当前reactor删除当前事件
                   // !!!
                   // 从作者知乎找到答案
+                  // 如果是子reactor的内容, 从当前reactor删除当前事件
                   // 如果当前SubReactor完成事件后，应该在EPOLL取消事件
                   delEventInLoopThread(fd);
                   ptr->setReactor(NULL);
                   // 接着把事件ptr放入处理事件的协程池
+                  // 每个线程的reactor会在自己的reactor的Loop()中
+                  //    ptr = CoroutineTaskQueue::GetCoroutineTaskQueue()->pop(); 
+                  //    取出事件切换到协程内容执行，并等待返回
                   CoroutineTaskQueue::GetCoroutineTaskQueue()->push(ptr);
-                  // 然后循环利用事件，怎么循环利用事件看自己的判断了
-                  // 如果判断当前事件已经完成（建议在coroutine_hook注册事件完成后）
-                  // 得循环利用事件
                 } else {
                   // main reactor, just resume this coroutine. it is accept coroutine. and Main Reactor only have this coroutine
+                  // 这是TcpServer的专用协程acceptCoroutine切换
                   // 主协程接收到EPOLL事件后，直接切换到子协程accept coroutine
                   // 在accept coroutine完成该事件
                   tinyrpc::Coroutine::Resume(ptr->getCoroutine());
@@ -388,6 +394,7 @@ void Reactor::loop() {
 
               } else {
                 // 如果FdEvent没有设置Coroutine
+                // 例如timer(继承自FdEvent)触发的事件
                 /*
                  * 
                  * !!!
@@ -403,9 +410,13 @@ void Reactor::loop() {
                 // if timer event, direct excute
                 if (fd == m_timer_fd) {
                   // 如果是timer ==> read事件回调函数执行
+                  // m_read_callback = std::bind(&Timer::onTimer, this);
+                  // 那么timer回调Timer::onTimer函数
                   read_cb();
                   continue;
                 }
+
+                // 其他 没有设置coroutine, 非timer 事件
                 // 将执行事件放入m_pending_tasks
                 if (one_event.events & EPOLLIN) {
                   // DebugLog << "socket [" << fd << "] occur read event";
@@ -499,8 +510,11 @@ void Reactor::addTask(std::vector<std::function<void()>> task, bool is_wakeup /*
   }
 }
 
+// !!!
 // 添加协程  ==>  把当前主协程切换到目的协程的事件打包
-// 只有在当前协程内才能使用addCoroutine
+// 会在线程中取出tasks，task()执行函数，那么会进入cor的回调函数
+// 如果在cor中也有read/write_hook()等利用coroutine的异步函数
+// 接着toEpoll()会继续注册任务，再回调执行
 void Reactor::addCoroutine(tinyrpc::Coroutine::ptr cor, bool is_wakeup /*=true*/) {
 
   auto func = [cor](){

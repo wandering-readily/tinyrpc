@@ -30,7 +30,9 @@ TinyPbRpcAsyncChannel::TinyPbRpcAsyncChannel(NetAddress::ptr addr) {
 
 TinyPbRpcAsyncChannel::~TinyPbRpcAsyncChannel() {
   // DebugLog << "~TinyPbRpcAsyncChannel(), return coroutine";
-  GetCoroutinePool()->returnCoroutine(m_pending_cor);
+  if (m_pending_cor) {
+    GetCoroutinePool()->returnCoroutine(m_pending_cor);
+  }
 }
 
 TinyPbRpcChannel* TinyPbRpcAsyncChannel::getRpcChannel() {

@@ -131,6 +131,7 @@ TcpServer::TcpServer(NetAddress::ptr addr, ProtocalType type /*= TinyPb_Protocal
 	m_time_wheel = std::make_shared<TcpTimeWheel>(m_main_reactor, gRpcConfig->m_timewheel_bucket_num, gRpcConfig->m_timewheel_inteval);
 
 	// 绑定删除clients过时连接
+	// 也就是每10s触发一次ClearClientTimerFunc
 	m_clear_clent_timer_event = std::make_shared<TimerEvent>(10000, true, std::bind(&TcpServer::ClearClientTimerFunc, this));
 	m_main_reactor->getTimer()->addTimerEvent(m_clear_clent_timer_event);
 
@@ -153,6 +154,7 @@ void TcpServer::start() {
 
 }
 
+// 由于TcpServer自己抽取了一个m_accept_cor，所以需要释放
 TcpServer::~TcpServer() {
 	// 还回m_acceptor_coroutine
 	GetCoroutinePool()->returnCoroutine(m_accept_cor);
@@ -171,9 +173,16 @@ void TcpServer::MainAcceptCorFunc() {
       Coroutine::Yield();
       continue;
     }
+	// !!!
+	// 重点阅读DEBUG
     IOThread *io_thread = m_io_pool->getIOThread();
 		// 重置IOThreadPool的IOThread，生成新的TcpConnection
+		// m_clients持有conn的shared_ptr指针
+		// !!!
+		// 重点阅读DEBUG
 		TcpConnection::ptr conn = addClient(io_thread, fd);
+		// !!!
+		// 重点阅读DEBUG
 		conn->initServer();
 		DebugLog << "tcpconnection address is " << conn.get() << ", and fd is" << fd;
 
@@ -182,8 +191,8 @@ void TcpServer::MainAcceptCorFunc() {
 		// 	conn.reset();
     // };
 
-	// ???
-	// 这是什么操作?
+	// !!!
+	// 重点阅读DEBUG
     io_thread->getReactor()->addCoroutine(conn->getCoroutine());
     m_tcp_counts++;
     DebugLog << "current tcp connection count is [" << m_tcp_counts << "]";
@@ -234,6 +243,9 @@ TcpConnection::ptr TcpServer::addClient(IOThread* io_thread, int fd) {
 		it->second.reset();
     // set new Tcpconnection	
 		DebugLog << "fd " << fd << "have exist, reset it";
+		// 由于ClearClientTimerFunc()函数删除了shared_ptr指针
+		// 但是m_clients (fd, shared_ptr<TcpConnecytion>(此时是nullptr))仍在
+		// 因此在这里重建
 		it->second = std::make_shared<TcpConnection>(this, io_thread, fd, 128, getPeerAddr());
 		return it->second;
 
@@ -264,6 +276,10 @@ void TcpServer::ClearClientTimerFunc() {
   // delete Closed TcpConnection per loop
   // for free memory
 	// DebugLog << "m_clients.size=" << m_clients.size();
+
+  // 在定时器中如果有连接超过了预定时间
+  // 那么就会减少TcpConnection的shared_ptr指针，促进释放TcpConnection
+  // 也会释放coroutine
   for (auto &i : m_clients) {
     // TcpConnection::ptr s_conn = i.second;
 		// DebugLog << "state = " << s_conn->getState();

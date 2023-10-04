@@ -56,12 +56,18 @@ void TcpConnection::setUpServer() {
 
 
 void TcpConnection::registerToTimeWheel() {
+  // cb回调函数不持有conn shared_ptr指针，因为参数传入
   auto cb = [] (TcpConnection::ptr conn) {
     conn->shutdownConnection();
   };
+  // shared_from_this()传入shared_ptr指针
+  // 但是 在AbstractSlot<TcpConnection>中将shared_ptr转化为weak_ptr
+  // 因此仍不持有shared_ptr指针
+  // 如果ConnectionPtr自己释放，那么将不会执行回调函数cb，也就不会shutdownConnection
   TcpTimeWheel::TcpConnectionSlot::ptr tmp = 
       std::make_shared<AbstractSlot<TcpConnection>>(shared_from_this(), cb);
   m_weak_slot = tmp;
+  // 将回调函数放入timewheel
   m_tcp_svr->freshTcpConnection(tmp);
 
 }
@@ -70,6 +76,7 @@ void TcpConnection::setUpClient() {
   setState(Connected);
 }
 
+// 也就是TcpConnection结束，才释放coroutine
 TcpConnection::~TcpConnection() {
   if (m_connection_type == ServerConnection) {
     GetCoroutinePool()->returnCoroutine(m_loop_cor);
