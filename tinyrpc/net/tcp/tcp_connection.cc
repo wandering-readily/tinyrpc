@@ -25,6 +25,10 @@ TcpConnection::TcpConnection(tinyrpc::TcpServer* tcp_svr, tinyrpc::IOThread* io_
   m_fd_event = FdEventContainer::GetFdContainer()->getFdEvent(fd);
   m_fd_event->setReactor(m_reactor);
   initBuffer(buff_size); 
+  // IO线程自己在创建的时候已经建立
+  //  void* IOThread::main(void* arg) 
+  //    Coroutine* Coroutine::GetCurrentCoroutine()
+  // 而要完成任务的协程从协程池中获取，这些协程都需要归还
   m_loop_cor = GetCoroutinePool()->getCoroutineInstanse();
   m_state = Connected;
   DebugLog << "succ create tcp connection[" << m_state << "], fd=" << fd;
@@ -68,6 +72,8 @@ void TcpConnection::registerToTimeWheel() {
       std::make_shared<AbstractSlot<TcpConnection>>(shared_from_this(), cb);
   m_weak_slot = tmp;
   // 将回调函数放入timewheel
+  // 服务器将调用shuown(SHUT_RDWR)，优雅地结束服务器的单方向连接
+  // 查阅资料SHUT_RDWR会在tcp发送窗口缓存全部发送完毕后，发送FIN报文
   m_tcp_svr->freshTcpConnection(tmp);
 
 }
@@ -143,6 +149,9 @@ void TcpConnection::input() {
       DebugLog << "rt <= 0";
       ErrorLog << "read empty while occur read event, because of peer close, fd= " << m_fd << ", sys error=" << strerror(errno) << ", now to clear tcp connection";
       // this cor can destroy
+      // 可能是
+      //        客户端client自己关闭
+      //        也可能是服务端server自己shutdown()
       close_flag = true;
       break;
     } else {
@@ -159,6 +168,7 @@ void TcpConnection::input() {
     }
   }
   if (close_flag) {
+    // 关闭服务器对客户的设置
     clearClient();
     DebugLog << "peer close, now yield current coroutine, wait main thread clear this TcpConnection";
     Coroutine::GetCurrentCoroutine()->setCanResume(false);
@@ -263,6 +273,9 @@ void TcpConnection::output() {
 
 
 void TcpConnection::clearClient() {
+  // 关闭连接，那么在清除连接端函数TcpServer::ClearClientTimerFunc()
+  // 知晓设置CLOSED状态后，减少shared_ptr<TcpConnection>的计数
+  // 从而关闭TcpConnection，换回coroutine
   if (getState() == Closed) {
     DebugLog << "this client has closed";
     return;
@@ -270,9 +283,11 @@ void TcpConnection::clearClient() {
   // first unregister epoll event
   m_fd_event->unregisterFromReactor(); 
 
+  // 结束当前coroutine循环
   // stop read and write cor
   m_stop = true;
 
+  // 关闭fd
   close(m_fd_event->getFd());
   setState(Closed);
 

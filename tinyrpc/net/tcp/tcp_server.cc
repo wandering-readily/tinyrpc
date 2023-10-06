@@ -283,6 +283,7 @@ void TcpServer::ClearClientTimerFunc() {
   for (auto &i : m_clients) {
     // TcpConnection::ptr s_conn = i.second;
 		// DebugLog << "state = " << s_conn->getState();
+	// 需要等待当前连接设置为Closed状态后才能关闭TcpConnection
     if (i.second && i.second.use_count() > 0 && i.second->getState() == Closed) {
       // need to delete TcpConnection
       DebugLog << "TcpConection [fd:" << i.first << "] will delete, state=" << i.second->getState();

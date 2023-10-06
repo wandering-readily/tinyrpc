@@ -249,12 +249,20 @@ void Reactor::loop() {
 		const int MAX_EVENTS = 10;
 		epoll_event re_events[MAX_EVENTS + 1];
 
+    /*
+     * first_coroutine表示的是当前线程的第一个排队的coroutine
+     * 处理当前线程获取的coroutine任务
+     */
     if (first_coroutine) {
       tinyrpc::Coroutine::Resume(first_coroutine);
       first_coroutine = NULL;
     }
 
     // main reactor need't to resume coroutine in global CoroutineTaskQueue, only io thread do this work
+    /*
+     * IO线程从coroutinePool获取coroutine任务
+     * 这里应该算是这个循环执行的第二个任务 
+     */
     if (m_reactor_type != MainReactor) {
       FdEvent* ptr = NULL;
       // ptr->setReactor(NULL);
@@ -363,8 +371,12 @@ void Reactor::loop() {
               if (ptr->getCoroutine()) {
                 // the first one coroutine when epoll_wait back, just directly resume by this thread, not add to global CoroutineTaskQueue
                 // because every operate CoroutineTaskQueue should add mutex lock
-                // ???
-                // ???
+                // !!!
+                /* 
+                 * 该线程保留的第本地任务
+                 * 避免多个任务放入协程任务池（锁的使用会降低效率）
+                 * 如果还想优化，其实可以建立一个本地协程队列
+                 */
                 if (!first_coroutine) {
                   first_coroutine = ptr->getCoroutine();
                   continue;
@@ -387,6 +399,8 @@ void Reactor::loop() {
                   // 主协程接收到EPOLL事件后，直接切换到子协程accept coroutine
                   // 在accept coroutine完成该事件
                   tinyrpc::Coroutine::Resume(ptr->getCoroutine());
+                  // mainReactor所在的main线程，持有main_coroutine
+                  // 只在这里一个一个完成任务，自然不关心本地协程任务和协程池任务
                   if (first_coroutine) {
                     first_coroutine = NULL;
                   }

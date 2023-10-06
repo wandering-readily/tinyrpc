@@ -89,6 +89,8 @@ void* IOThread::main(void* arg) {
   thread->m_reactor->setReactorType(SubReactor);
   thread->m_tid = gettid();
 
+  // 这里至关重要
+  // 创建当前线程的t_main_coroutine
   Coroutine::GetCurrentCoroutine();
 
   DebugLog << "finish iothread init, now post semaphore";
