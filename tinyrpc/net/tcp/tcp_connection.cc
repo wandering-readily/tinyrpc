@@ -18,7 +18,7 @@ TcpConnection::TcpConnection(tinyrpc::TcpServer* tcp_svr, tinyrpc::IOThread* io_
   : m_io_thread(io_thread), m_fd(fd), m_state(Connected), m_connection_type(ServerConnection), m_peer_addr(peer_addr) {	
   m_reactor = m_io_thread->getReactor();
 
-  // DebugLog << "m_state=[" << m_state << "], =" << fd;
+  // RpcDebugLog << "m_state=[" << m_state << "], =" << fd;
   m_tcp_svr = tcp_svr;
 
   m_codec = m_tcp_svr->getCodec();
@@ -31,7 +31,7 @@ TcpConnection::TcpConnection(tinyrpc::TcpServer* tcp_svr, tinyrpc::IOThread* io_
   // 而要完成任务的协程从协程池中获取，这些协程都需要归还
   m_loop_cor = GetCoroutinePool()->getCoroutineInstanse();
   m_state = Connected;
-  DebugLog << "succ create tcp connection[" << m_state << "], fd=" << fd;
+  RpcDebugLog << "succ create tcp connection[" << m_state << "], fd=" << fd;
 }
 
 TcpConnection::TcpConnection(tinyrpc::TcpClient* tcp_cli, tinyrpc::Reactor* reactor, int fd, int buff_size, NetAddress::ptr peer_addr)
@@ -46,7 +46,7 @@ TcpConnection::TcpConnection(tinyrpc::TcpClient* tcp_cli, tinyrpc::Reactor* reac
   m_fd_event->setReactor(m_reactor);
   initBuffer(buff_size); 
 
-  DebugLog << "succ create tcp connection[NotConnected]";
+  RpcDebugLog << "succ create tcp connection[NotConnected]";
 
 }
 
@@ -88,7 +88,7 @@ TcpConnection::~TcpConnection() {
     GetCoroutinePool()->returnCoroutine(m_loop_cor);
   }
 
-  DebugLog << "~TcpConnection, fd=" << m_fd;
+  RpcDebugLog << "~TcpConnection, fd=" << m_fd;
 }
 
 void TcpConnection::initBuffer(int size) {
@@ -108,12 +108,12 @@ void TcpConnection::MainServerLoopCorFunc() {
 
     output();
   }
-  InfoLog << "this connection has already end loop";
+  RpcInfoLog << "this connection has already end loop";
 }
 
 void TcpConnection::input() {
   if (m_is_over_time) {
-    InfoLog << "over timer, skip input progress";
+    RpcInfoLog << "over timer, skip input progress";
     return;
   }
   TcpConnectionState state = getState();
@@ -132,22 +132,22 @@ void TcpConnection::input() {
     int read_count = m_read_buffer->writeAble();
     int write_index = m_read_buffer->writeIndex();
 
-    DebugLog << "m_read_buffer size=" << m_read_buffer->getBufferVector().size() << "rd=" << m_read_buffer->readIndex() << "wd=" << m_read_buffer->writeIndex();
+    RpcDebugLog << "m_read_buffer size=" << m_read_buffer->getBufferVector().size() << "rd=" << m_read_buffer->readIndex() << "wd=" << m_read_buffer->writeIndex();
     int rt = read_hook(m_fd, &(m_read_buffer->m_buffer[write_index]), read_count);
     if (rt > 0) {
       m_read_buffer->recycleWrite(rt);
     }
-    DebugLog << "m_read_buffer size=" << m_read_buffer->getBufferVector().size() << "rd=" << m_read_buffer->readIndex() << "wd=" << m_read_buffer->writeIndex();
+    RpcDebugLog << "m_read_buffer size=" << m_read_buffer->getBufferVector().size() << "rd=" << m_read_buffer->readIndex() << "wd=" << m_read_buffer->writeIndex();
 
-    DebugLog << "read data back, fd=" << m_fd;
+    RpcDebugLog << "read data back, fd=" << m_fd;
     count += rt;
     if (m_is_over_time) {
-      InfoLog << "over timer, now break read function";
+      RpcInfoLog << "over timer, now break read function";
       break;
     }
     if (rt <= 0) {
-      DebugLog << "rt <= 0";
-      ErrorLog << "read empty while occur read event, because of peer close, fd= " << m_fd << ", sys error=" << strerror(errno) << ", now to clear tcp connection";
+      RpcDebugLog << "rt <= 0";
+      RpcErrorLog << "read empty while occur read event, because of peer close, fd= " << m_fd << ", sys error=" << strerror(errno) << ", now to clear tcp connection";
       // this cor can destroy
       // 可能是
       //        客户端client自己关闭
@@ -156,11 +156,11 @@ void TcpConnection::input() {
       break;
     } else {
       if (rt == read_count) {
-        DebugLog << "read_count == rt";
+        RpcDebugLog << "read_count == rt";
         // is is possible read more data, should continue read
         continue;
       } else if (rt < read_count) {
-        DebugLog << "read_count > rt";
+        RpcDebugLog << "read_count > rt";
         // read all data in socket buffer, skip out loop
         read_all = true;
         break;
@@ -170,7 +170,7 @@ void TcpConnection::input() {
   if (close_flag) {
     // 关闭服务器对客户的设置
     clearClient();
-    DebugLog << "peer close, now yield current coroutine, wait main thread clear this TcpConnection";
+    RpcDebugLog << "peer close, now yield current coroutine, wait main thread clear this TcpConnection";
     Coroutine::GetCurrentCoroutine()->setCanResume(false);
     Coroutine::Yield();
     // return;
@@ -181,9 +181,9 @@ void TcpConnection::input() {
   }
 
   if (!read_all) {
-    ErrorLog << "not read all data in socket buffer";
+    RpcErrorLog << "not read all data in socket buffer";
   }
-  InfoLog << "recv [" << count << "] bytes data from [" << m_peer_addr->toString() << "], fd [" << m_fd << "]";
+  RpcInfoLog << "recv [" << count << "] bytes data from [" << m_peer_addr->toString() << "], fd [" << m_fd << "]";
   if (m_connection_type == ServerConnection) {
     TcpTimeWheel::TcpConnectionSlot::ptr tmp = m_weak_slot.lock();
     if (tmp) {
@@ -194,28 +194,28 @@ void TcpConnection::input() {
 }
 
 void TcpConnection::execute() {
-  // DebugLog << "begin to do execute";
+  // RpcDebugLog << "begin to do execute";
 
   // it only server do this
   while(m_read_buffer->readAble() > 0) {
     std::shared_ptr<AbstractData> data;
-    if (m_codec->getProtocalType() == TinyPb_Protocal) {
+    if (m_codec->getProtocalType() == ProtocalType::TinyPb_Protocal) {
       data = std::make_shared<TinyPbStruct>();
     } else {
       data = std::make_shared<HttpRequest>();
     }
 
     m_codec->decode(m_read_buffer.get(), data.get());
-    // DebugLog << "parse service_name=" << pb_struct.service_full_name;
+    // RpcDebugLog << "parse service_name=" << pb_struct.service_full_name;
     if (!data->decode_succ) {
-      ErrorLog << "it parse request error of fd " << m_fd;
+      RpcErrorLog << "it parse request error of fd " << m_fd;
       break;
     }
-    // DebugLog << "it parse request success";
+    // RpcDebugLog << "it parse request success";
     if (m_connection_type == ServerConnection) {
-      // DebugLog << "to dispatch this package";
+      // RpcDebugLog << "to dispatch this package";
       m_tcp_svr->getDispatcher()->dispatch(data.get(), this);
-      // DebugLog << "contine parse next package";
+      // RpcDebugLog << "contine parse next package";
     } else if (m_connection_type == ClientConnection) {
       // TODO:
       std::shared_ptr<TinyPbStruct> tmp = std::dynamic_pointer_cast<TinyPbStruct>(data);
@@ -230,7 +230,7 @@ void TcpConnection::execute() {
 
 void TcpConnection::output() {
   if (m_is_over_time) {
-    InfoLog << "over timer, skip output progress";
+    RpcInfoLog << "over timer, skip output progress";
     return;
   }
   while(true) {
@@ -240,31 +240,31 @@ void TcpConnection::output() {
     }
 
     if (m_write_buffer->readAble() == 0) {
-      DebugLog << "app buffer of fd[" << m_fd << "] no data to write, to yiled this coroutine";
+      RpcDebugLog << "app buffer of fd[" << m_fd << "] no data to write, to yiled this coroutine";
       break;
     }
     
     int total_size = m_write_buffer->readAble();
     int read_index = m_write_buffer->readIndex();
     int rt = write_hook(m_fd, &(m_write_buffer->m_buffer[read_index]), total_size);
-    // InfoLog << "write end";
+    // RpcInfoLog << "write end";
     if (rt <= 0) {
-      ErrorLog << "write empty, error=" << strerror(errno);
+      RpcErrorLog << "write empty, error=" << strerror(errno);
     }
 
-    DebugLog << "succ write " << rt << " bytes";
+    RpcDebugLog << "succ write " << rt << " bytes";
     m_write_buffer->recycleRead(rt);
-    DebugLog << "recycle write index =" << m_write_buffer->writeIndex() << ", read_index =" << m_write_buffer->readIndex() << "readable = " << m_write_buffer->readAble();
-    InfoLog << "send[" << rt << "] bytes data to [" << m_peer_addr->toString() << "], fd [" << m_fd << "]";
+    RpcDebugLog << "recycle write index =" << m_write_buffer->writeIndex() << ", read_index =" << m_write_buffer->readIndex() << "readable = " << m_write_buffer->readAble();
+    RpcInfoLog << "send[" << rt << "] bytes data to [" << m_peer_addr->toString() << "], fd [" << m_fd << "]";
     if (m_write_buffer->readAble() <= 0) {
-      // InfoLog << "send all data, now unregister write event on reactor and yield Coroutine";
-      InfoLog << "send all data, now unregister write event and break";
+      // RpcInfoLog << "send all data, now unregister write event on reactor and yield Coroutine";
+      RpcInfoLog << "send all data, now unregister write event and break";
       // m_fd_event->delListenEvents(IOEvent::WRITE);
       break;
     }
 
     if (m_is_over_time) {
-      InfoLog << "over timer, now break write function";
+      RpcInfoLog << "over timer, now break write function";
       break;
     }
 
@@ -277,7 +277,7 @@ void TcpConnection::clearClient() {
   // 知晓设置CLOSED状态后，减少shared_ptr<TcpConnection>的计数
   // 从而关闭TcpConnection，换回coroutine
   if (getState() == Closed) {
-    DebugLog << "this client has closed";
+    RpcDebugLog << "this client has closed";
     return;
   }
   // first unregister epoll event
@@ -296,11 +296,11 @@ void TcpConnection::clearClient() {
 void TcpConnection::shutdownConnection() {
   TcpConnectionState state = getState();
   if (state == Closed || state == NotConnected) {
-    DebugLog << "this client has closed";
+    RpcDebugLog << "this client has closed";
     return;
   }
   setState(HalfClosing);
-  InfoLog << "shutdown conn[" << m_peer_addr->toString() << "], fd=" << m_fd;
+  RpcInfoLog << "shutdown conn[" << m_peer_addr->toString() << "], fd=" << m_fd;
   // call sys shutdown to send FIN
   // wait client done something, client will send FIN
   // and fd occur read event but byte count is 0
@@ -321,12 +321,12 @@ TcpBuffer* TcpConnection::getOutBuffer() {
 bool TcpConnection::getResPackageData(const std::string& msg_req, TinyPbStruct::pb_ptr& pb_struct) {
   auto it = m_reply_datas.find(msg_req);
   if (it != m_reply_datas.end()) {
-    DebugLog << "return a resdata";
+    RpcDebugLog << "return a resdata";
     pb_struct = it->second;
     m_reply_datas.erase(it);
     return true;
   }
-  DebugLog << msg_req << "|reply data not exist";
+  RpcDebugLog << msg_req << "|reply data not exist";
   return false;
 
 }

@@ -16,14 +16,14 @@ void HttpDispacther::dispatch(AbstractData* data, TcpConnection* conn) {
   Coroutine::GetCurrentCoroutine()->getRunTime()->m_msg_no = MsgReqUtil::genMsgNumber();
   setCurrentRunTime(Coroutine::GetCurrentCoroutine()->getRunTime());
 
-  InfoLog << "begin to dispatch client http request, msgno=" << Coroutine::GetCurrentCoroutine()->getRunTime()->m_msg_no;
+  RpcInfoLog << "begin to dispatch client http request, msgno=" << Coroutine::GetCurrentCoroutine()->getRunTime()->m_msg_no;
 
   // 转发处理方式
   std::string url_path = resquest->m_request_path;
   if (!url_path.empty()) {
     auto it = m_servlets.find(url_path);
     if (it == m_servlets.end()) {
-      ErrorLog << "404, url path{ " << url_path << "}, msgno=" << Coroutine::GetCurrentCoroutine()->getRunTime()->m_msg_no;
+      RpcErrorLog << "404, url path{ " << url_path << "}, msgno=" << Coroutine::GetCurrentCoroutine()->getRunTime()->m_msg_no;
       NotFoundHttpServlet servlet;
       Coroutine::GetCurrentCoroutine()->getRunTime()->m_interface_name = servlet.getServletName();
       servlet.setCommParam(resquest, &response);
@@ -39,7 +39,7 @@ void HttpDispacther::dispatch(AbstractData* data, TcpConnection* conn) {
   // 写入发送内容
   conn->getCodec()->encode(conn->getOutBuffer(), &response);
 
-  InfoLog << "end dispatch client http request, msgno=" << Coroutine::GetCurrentCoroutine()->getRunTime()->m_msg_no;
+  RpcInfoLog << "end dispatch client http request, msgno=" << Coroutine::GetCurrentCoroutine()->getRunTime()->m_msg_no;
 
 }
 
@@ -47,10 +47,10 @@ void HttpDispacther::dispatch(AbstractData* data, TcpConnection* conn) {
 void HttpDispacther::registerServlet(const std::string& path, HttpServlet::ptr servlet) {
   auto it = m_servlets.find(path);
   if (it == m_servlets.end()) {
-    DebugLog << "register servlet success to path {" << path << "}";
+    RpcDebugLog << "register servlet success to path {" << path << "}";
     m_servlets[path] = servlet;
   } else {
-    ErrorLog << "failed to register, beacuse path {" << path << "} has already register sertlet";
+    RpcErrorLog << "failed to register, beacuse path {" << path << "} has already register sertlet";
   }
 }
 

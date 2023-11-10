@@ -19,42 +19,15 @@ public:
       : m_mutex(mutex)
   {
     m_mutex.lock();
-    m_locked = true;
   }
 
   ~ScopedLockImpl()
   {
-    unlock();
-    m_locked = false;
-  }
-
-  void lock()
-  {
-    // if (!m_locked)
-    // {
-      // m_mutex.lock();
-      // m_locked = true;
-    // }
-    m_mutex.lock();
-    m_locked = true;
-  }
-
-  void unlock()
-  {
-    // if (m_locked)
-    // {
-      // m_mutex.unlock();
-      // m_locked = false;
-    // }
     m_mutex.unlock();
-    m_locked = false;
   }
 
 private:
-  /// mutex
   T &m_mutex;
-  /// 是否已上锁
-  bool m_locked;
 };
 
 template <class T>
@@ -65,45 +38,18 @@ public:
       : m_mutex(mutex)
   {
     m_mutex.rdlock();
-    m_locked = true;
   }
 
   ~ReadScopedLockImpl()
   {
-    unlock();
-    m_locked = false;
-  }
-
-  void lock()
-  {
-    // if (!m_locked)
-    // {
-      // m_mutex.rdlock();
-      // m_locked = true;
-    // }
-    m_mutex.rdlock();
-    m_locked = true;
-  }
-
-  void unlock()
-  {
-    // if (m_locked)
-    // {
-      // m_mutex.unlock();
-      // m_locked = false;
-    // }
     m_mutex.unlock();
-    m_locked = false;
   }
 
 private:
-  /// mutex
   T &m_mutex;
-  /// 是否已上锁
-  bool m_locked;
 };
 
-/**
+/*
  * @brief 局部写锁模板实现
  */
 template <class T>
@@ -114,40 +60,15 @@ public:
       : m_mutex(mutex)
   {
     m_mutex.wrlock();
-    m_locked = true;
   }
 
   ~WriteScopedLockImpl()
   {
-    unlock();
-    m_locked = false;
-  }
-
-  void lock()
-  {
-    // if (!m_locked)
-    // {
-      // m_mutex.wrlock();
-      // m_locked = true;
-    // }
-    m_mutex.wrlock();
-    m_locked = true;
-  }
-
-  void unlock()
-  {
-    // if (m_locked)
-    // {
-      // m_mutex.unlock();
-      // m_locked = false;
-    // }
     m_mutex.unlock();
-    m_locked = false;
   }
 
 private:
   T &m_mutex;
-  bool m_locked;
 };
 
 class Mutex

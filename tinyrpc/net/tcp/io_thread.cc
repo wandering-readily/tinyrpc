@@ -15,8 +15,6 @@
 
 namespace tinyrpc {
 
-extern tinyrpc::Config::ptr gRpcConfig;
-
 // thread_local类型变量
 static thread_local Reactor* t_reactor_ptr = nullptr;
 
@@ -32,11 +30,11 @@ IOThread::IOThread() {
 
   pthread_create(&m_thread, nullptr, &IOThread::main, this);
 
-  DebugLog << "semaphore begin to wait until new thread frinish IOThread::main() to init";
+  RpcDebugLog << "semaphore begin to wait until new thread frinish IOThread::main() to init";
   // wait until new thread finish IOThread::main() func to init 
   rt = sem_wait(&m_init_semaphore);
   assert(rt == 0);
-  DebugLog << "semaphore wait end, finish create io thread";
+  RpcDebugLog << "semaphore wait end, finish create io thread";
 
   sem_destroy(&m_init_semaphore);
 }
@@ -93,7 +91,7 @@ void* IOThread::main(void* arg) {
   // 创建当前线程的t_main_coroutine
   Coroutine::GetCurrentCoroutine();
 
-  DebugLog << "finish iothread init, now post semaphore";
+  RpcDebugLog << "finish iothread init, now post semaphore";
   // IOThread()构造函数会等待m_init_semaphore
   sem_post(&thread->m_init_semaphore);
 
@@ -103,7 +101,7 @@ void* IOThread::main(void* arg) {
 
   sem_destroy(&thread->m_start_semaphore);
 
-  DebugLog << "IOThread " << thread->m_tid << " begin to loop";
+  RpcDebugLog << "IOThread " << thread->m_tid << " begin to loop";
   // !!!
   // 开始循环
   t_reactor_ptr->loop();
@@ -205,7 +203,7 @@ Coroutine::ptr IOThreadPool::addCoroutineToRandomThread(std::function<void()> cb
 // 根据IOThread index添加协程内容
 Coroutine::ptr IOThreadPool::addCoroutineToThreadByIndex(int index, std::function<void()> cb, bool self/* = false*/) {
   if (index >= (int)m_io_threads.size() || index < 0) {
-    ErrorLog << "addCoroutineToThreadByIndex error, invalid iothread index[" << index << "]";
+    RpcErrorLog << "addCoroutineToThreadByIndex error, invalid iothread index[" << index << "]";
     return nullptr;
   }
   Coroutine::ptr cor = GetCoroutinePool()->getCoroutineInstanse();

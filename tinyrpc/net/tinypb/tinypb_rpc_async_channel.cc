@@ -29,7 +29,7 @@ TinyPbRpcAsyncChannel::TinyPbRpcAsyncChannel(NetAddress::ptr addr) {
 }
 
 TinyPbRpcAsyncChannel::~TinyPbRpcAsyncChannel() {
-  // DebugLog << "~TinyPbRpcAsyncChannel(), return coroutine";
+  // RpcDebugLog << "~TinyPbRpcAsyncChannel(), return coroutine";
   if (m_pending_cor) {
     GetCoroutinePool()->returnCoroutine(m_pending_cor);
   }
@@ -55,7 +55,7 @@ void TinyPbRpcAsyncChannel::CallMethod(const google::protobuf::MethodDescriptor*
   
   TinyPbRpcController* rpc_controller = dynamic_cast<TinyPbRpcController*>(controller);
   if (!m_is_pre_set) {
-    ErrorLog << "Error! must call [saveCallee()] function before [CallMethod()]"; 
+    RpcErrorLog << "Error! must call [saveCallee()] function before [CallMethod()]"; 
     TinyPbRpcController* rpc_controller = dynamic_cast<TinyPbRpcController*>(controller);
     rpc_controller->SetError(ERROR_NOT_SET_ASYNC_PRE_CALL, "Error! must call [saveCallee()] function before [CallMethod()];");
     m_is_finished = true;
@@ -64,24 +64,24 @@ void TinyPbRpcAsyncChannel::CallMethod(const google::protobuf::MethodDescriptor*
   RunTime* run_time = getCurrentRunTime();
   if (run_time) {
     rpc_controller->SetMsgReq(run_time->m_msg_no);
-    DebugLog << "get from RunTime succ, msgno=" << run_time->m_msg_no;
+    RpcDebugLog << "get from RunTime succ, msgno=" << run_time->m_msg_no;
   } else {
     rpc_controller->SetMsgReq(MsgReqUtil::genMsgNumber());
-    DebugLog << "get from RunTime error, generate new msgno=" << rpc_controller->MsgSeq();
+    RpcDebugLog << "get from RunTime error, generate new msgno=" << rpc_controller->MsgSeq();
   }
 
   std::shared_ptr<TinyPbRpcAsyncChannel> s_ptr = shared_from_this();
 
   auto cb = [s_ptr, method]() mutable {
     // 1. 完成rpcChannel的callMethod()任务
-    DebugLog << "now excute rpc call method by this thread";
+    RpcDebugLog << "now excute rpc call method by this thread";
     s_ptr->getRpcChannel()->CallMethod(method, s_ptr->getControllerPtr(), s_ptr->getRequestPtr(), s_ptr->getResponsePtr(), NULL);
 
-    DebugLog << "excute rpc call method by this thread finish";
+    RpcDebugLog << "excute rpc call method by this thread finish";
 
     // 2. 回调任务
     auto call_back = [s_ptr]() mutable {
-      DebugLog << "async excute rpc call method back old thread";
+      RpcDebugLog << "async excute rpc call method back old thread";
       // callback function excute in origin thread
       if (s_ptr->getClosurePtr() != nullptr) {
         s_ptr->getClosurePtr()->Run();
@@ -92,7 +92,7 @@ void TinyPbRpcAsyncChannel::CallMethod(const google::protobuf::MethodDescriptor*
       // 这里是为了设置wait()异步等待结果
       // 从wait()的Yield()地方回去
       if (s_ptr->getNeedResume()) {
-        DebugLog << "async excute rpc call method back old thread, need resume";
+        RpcDebugLog << "async excute rpc call method back old thread, need resume";
         Coroutine::Resume(s_ptr->getCurrentCoroutine());
       }
       s_ptr.reset();

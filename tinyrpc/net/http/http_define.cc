@@ -4,10 +4,10 @@
 
 namespace tinyrpc {
 
-std::string g_CRLF = "\r\n";
-std::string g_CRLF_DOUBLE = "\r\n\r\n";
+const std::string g_CRLF = "\r\n";
+const std::string g_CRLF_DOUBLE = "\r\n\r\n";
 
-std::string content_type_text = "text/html;charset=utf-8";
+const std::string content_type_text = "text/html;charset=utf-8";
 const char* default_html_template = "<html><body><h1>%s</h1><p>%s</p></body></html>";
 
 

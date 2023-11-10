@@ -17,7 +17,6 @@
 
 namespace tinyrpc {
 
-extern tinyrpc::Config::ptr gRpcConfig;
 
 TcpAcceptor::TcpAcceptor(NetAddress::ptr net_addr) : m_local_addr(net_addr) {
 	
@@ -27,36 +26,36 @@ TcpAcceptor::TcpAcceptor(NetAddress::ptr net_addr) : m_local_addr(net_addr) {
 void TcpAcceptor::init() {
 	m_fd = socket(m_local_addr->getFamily(), SOCK_STREAM, 0);
 	if (m_fd < 0) {
-		ErrorLog << "start server error. socket error, sys error=" << strerror(errno);
+		RpcErrorLog << "start server error. socket error, sys error=" << strerror(errno);
 		Exit(0);
 	}
 	// assert(m_fd != -1);
-	DebugLog << "create listenfd succ, listenfd=" << m_fd;
+	RpcDebugLog << "create listenfd succ, listenfd=" << m_fd;
 
 	// int flag = fcntl(m_fd, F_GETFL, 0);
 	// int rt = fcntl(m_fd, F_SETFL, flag | O_NONBLOCK);
 	
 	// if (rt != 0) {
-		// ErrorLog << "fcntl set nonblock error, errno=" << errno << ", error=" << strerror(errno);
+		// RpcErrorLog << "fcntl set nonblock error, errno=" << errno << ", error=" << strerror(errno);
 	// }
 
 	int val = 1;
 	if (setsockopt(m_fd, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(val)) < 0) {
-		ErrorLog << "set REUSEADDR error";
+		RpcErrorLog << "set REUSEADDR error";
 	}
 
 	socklen_t len = m_local_addr->getSockLen();
 	int rt = bind(m_fd, m_local_addr->getSockAddr(), len);
 	if (rt != 0) {
-		ErrorLog << "start server error. bind error, errno=" << errno << ", error=" << strerror(errno);
+		RpcErrorLog << "start server error. bind error, errno=" << errno << ", error=" << strerror(errno);
 		Exit(0);
 	}
   // assert(rt == 0);
 
-	DebugLog << "set REUSEADDR succ";
+	RpcDebugLog << "set REUSEADDR succ";
 	rt = listen(m_fd, 10);
 	if (rt != 0) {
-		ErrorLog << "start server error. listen error, fd= " << m_fd << ", errno=" << errno << ", error=" << strerror(errno);
+		RpcErrorLog << "start server error. listen error, fd= " << m_fd << ", errno=" << errno << ", error=" << strerror(errno);
 		Exit(0);
 	}
   // assert(rt == 0);
@@ -83,10 +82,10 @@ int TcpAcceptor::toAccept() {
 		// call hook accept
 		rt = accept_hook(m_fd, reinterpret_cast<sockaddr *>(&cli_addr), &len);
 		if (rt == -1) {
-			DebugLog << "error, no new client coming, errno=" << errno << "error=" << strerror(errno);
+			RpcDebugLog << "error, no new client coming, errno=" << errno << "error=" << strerror(errno);
 			return -1;
 		}
-		InfoLog << "New client accepted succ! port:[" << cli_addr.sin_port;
+		RpcInfoLog << "New client accepted succ! port:[" << cli_addr.sin_port;
 		m_peer_addr = std::make_shared<IPAddress>(cli_addr);
 	} else if (m_family == AF_UNIX) {
 		sockaddr_un cli_addr;
@@ -95,47 +94,48 @@ int TcpAcceptor::toAccept() {
 		// call hook accept
 		rt = accept_hook(m_fd, reinterpret_cast<sockaddr *>(&cli_addr), &len);
 		if (rt == -1) {
-			DebugLog << "error, no new client coming, errno=" << errno << "error=" << strerror(errno);
+			RpcDebugLog << "error, no new client coming, errno=" << errno << "error=" << strerror(errno);
 			return -1;
 		}
 		m_peer_addr = std::make_shared<UnixDomainAddress>(cli_addr);
 
 	} else {
-		ErrorLog << "unknown type protocol!";
+		RpcErrorLog << "unknown type protocol!";
 		close(rt);
 		return -1;
 	}
 
-	InfoLog << "New client accepted succ! fd:[" << rt <<  ", addr:[" << m_peer_addr->toString() << "]";
+	RpcInfoLog << "New client accepted succ! fd:[" << rt <<  ", addr:[" << m_peer_addr->toString() << "]";
 	return rt;	
 }
 
 
-TcpServer::TcpServer(NetAddress::ptr addr, ProtocalType type /*= TinyPb_Protocal*/) : m_addr(addr) {
+// TcpServer::TcpServer(NetAddress::ptr addr, ProtocalType type /*= TinyPb_Protocal*/) : m_addr(addr) {
+TcpServer::TcpServer(Config *config) : m_addr(config->addr) {
 
-  m_io_pool = std::make_shared<IOThreadPool>(gRpcConfig->m_iothread_num);
-	if (type == Http_Protocal) {
+  m_io_pool = std::make_shared<IOThreadPool>(config->m_iothread_num);
+	if (config->protocal == ProtocalType::Http_Protocal) {
 		m_dispatcher = std::make_shared<HttpDispacther>();
 		m_codec = std::make_shared<HttpCodeC>();
-		m_protocal_type = Http_Protocal;
+		m_protocal_type = ProtocalType::Http_Protocal;
 	} else {
 		m_dispatcher = std::make_shared<TinyPbRpcDispacther>();
 		m_codec = std::make_shared<TinyPbCodeC>();
-		m_protocal_type = TinyPb_Protocal;
+		m_protocal_type = ProtocalType::TinyPb_Protocal;
 	}
 
 	m_main_reactor = tinyrpc::Reactor::GetReactor();
 	m_main_reactor->setReactorType(MainReactor);
 
 	// 时间轮存放定时事件
-	m_time_wheel = std::make_shared<TcpTimeWheel>(m_main_reactor, gRpcConfig->m_timewheel_bucket_num, gRpcConfig->m_timewheel_inteval);
+	m_time_wheel = std::make_shared<TcpTimeWheel>(m_main_reactor, config->m_timewheel_bucket_num, config->m_timewheel_inteval);
 
 	// 绑定删除clients过时连接
 	// 也就是每10s触发一次ClearClientTimerFunc
 	m_clear_clent_timer_event = std::make_shared<TimerEvent>(10000, true, std::bind(&TcpServer::ClearClientTimerFunc, this));
 	m_main_reactor->getTimer()->addTimerEvent(m_clear_clent_timer_event);
 
-	InfoLog << "TcpServer setup on [" << m_addr->toString() << "]";
+	RpcInfoLog << "TcpServer setup on [" << m_addr->toString() << "]";
 }
 
 void TcpServer::start() {
@@ -146,7 +146,7 @@ void TcpServer::start() {
 	m_accept_cor = GetCoroutinePool()->getCoroutineInstanse();
 	m_accept_cor->setCallBack(std::bind(&TcpServer::MainAcceptCorFunc, this));
 
-	InfoLog << "resume accept coroutine";
+	RpcInfoLog << "resume accept coroutine";
 	tinyrpc::Coroutine::Resume(m_accept_cor.get());
 
   m_io_pool->start();
@@ -158,7 +158,7 @@ void TcpServer::start() {
 TcpServer::~TcpServer() {
 	// 还回m_acceptor_coroutine
 	GetCoroutinePool()->returnCoroutine(m_accept_cor);
-  DebugLog << "~TcpServer";
+  RpcDebugLog << "~TcpServer";
 }
 
 
@@ -169,7 +169,7 @@ void TcpServer::MainAcceptCorFunc() {
 	// 接收连接
     int fd = m_acceptor->toAccept();
     if (fd == -1) {
-      ErrorLog << "accept ret -1 error, return, to yield";
+      RpcErrorLog << "accept ret -1 error, return, to yield";
       Coroutine::Yield();
       continue;
     }
@@ -184,7 +184,7 @@ void TcpServer::MainAcceptCorFunc() {
 		// !!!
 		// 重点阅读DEBUG
 		conn->initServer();
-		DebugLog << "tcpconnection address is " << conn.get() << ", and fd is" << fd;
+		RpcDebugLog << "tcpconnection address is " << conn.get() << ", and fd is" << fd;
 
     // auto cb = [io_thread, conn]() mutable {
     //   io_thread->addClient(conn.get());
@@ -195,7 +195,7 @@ void TcpServer::MainAcceptCorFunc() {
 	// 重点阅读DEBUG
     io_thread->getReactor()->addCoroutine(conn->getCoroutine());
     m_tcp_counts++;
-    DebugLog << "current tcp connection count is [" << m_tcp_counts << "]";
+    RpcDebugLog << "current tcp connection count is [" << m_tcp_counts << "]";
   }
 }
 
@@ -206,15 +206,15 @@ void TcpServer::addCoroutine(Coroutine::ptr cor) {
 
 // 注册service
 bool TcpServer::registerService(std::shared_ptr<google::protobuf::Service> service) {
-	if (m_protocal_type == TinyPb_Protocal) {
+	if (m_protocal_type == tinyrpc::ProtocalType::TinyPb_Protocal) {
 		if (service) {
 			dynamic_cast<TinyPbRpcDispacther*>(m_dispatcher.get())->registerService(service);
 		} else {
-			ErrorLog << "register service error, service ptr is nullptr";
+			RpcErrorLog << "register service error, service ptr is nullptr";
 			return false;
 		}
 	} else {
-		ErrorLog << "register service error. Just TinyPB protocal server need to resgister Service";
+		RpcErrorLog << "register service error. Just TinyPB protocal server need to resgister Service";
 		return false;
 	}
 	return true;
@@ -222,15 +222,15 @@ bool TcpServer::registerService(std::shared_ptr<google::protobuf::Service> servi
 
 // 注册HTTP服务
 bool TcpServer::registerHttpServlet(const std::string& url_path, HttpServlet::ptr servlet) {
-	if (m_protocal_type == Http_Protocal) {
+	if (m_protocal_type == ProtocalType::Http_Protocal) {
 		if (servlet) {
 			dynamic_cast<HttpDispacther*>(m_dispatcher.get())->registerServlet(url_path, servlet);
 		} else {
-			ErrorLog << "register http servlet error, servlet ptr is nullptr";
+			RpcErrorLog << "register http servlet error, servlet ptr is nullptr";
 			return false;
 		}
 	} else {
-		ErrorLog << "register http servlet error. Just Http protocal server need to resgister HttpServlet";
+		RpcErrorLog << "register http servlet error. Just Http protocal server need to resgister HttpServlet";
 		return false;
 	}
 	return true;
@@ -242,7 +242,7 @@ TcpConnection::ptr TcpServer::addClient(IOThread* io_thread, int fd) {
   if (it != m_clients.end()) {
 		it->second.reset();
     // set new Tcpconnection	
-		DebugLog << "fd " << fd << "have exist, reset it";
+		RpcDebugLog << "fd " << fd << "have exist, reset it";
 		// 由于ClearClientTimerFunc()函数删除了shared_ptr指针
 		// 但是m_clients (fd, shared_ptr<TcpConnecytion>(此时是nullptr))仍在
 		// 因此在这里重建
@@ -250,7 +250,7 @@ TcpConnection::ptr TcpServer::addClient(IOThread* io_thread, int fd) {
 		return it->second;
 
   } else {
-		DebugLog << "fd " << fd << "did't exist, new it";
+		RpcDebugLog << "fd " << fd << "did't exist, new it";
     TcpConnection::ptr conn = std::make_shared<TcpConnection>(this, io_thread, fd, 128, getPeerAddr()); 
     m_clients.insert(std::make_pair(fd, conn));
 		return conn;
@@ -271,22 +271,22 @@ void TcpServer::freshTcpConnection(TcpTimeWheel::TcpConnectionSlot::ptr slot) {
 
 
 void TcpServer::ClearClientTimerFunc() {
-  // DebugLog << "this IOThread loop timer excute";
+  // RpcDebugLog << "this IOThread loop timer excute";
   
   // delete Closed TcpConnection per loop
   // for free memory
-	// DebugLog << "m_clients.size=" << m_clients.size();
+	// RpcDebugLog << "m_clients.size=" << m_clients.size();
 
   // 在定时器中如果有连接超过了预定时间
   // 那么就会减少TcpConnection的shared_ptr指针，促进释放TcpConnection
   // 也会释放coroutine
   for (auto &i : m_clients) {
     // TcpConnection::ptr s_conn = i.second;
-		// DebugLog << "state = " << s_conn->getState();
+		// RpcDebugLog << "state = " << s_conn->getState();
 	// 需要等待当前连接设置为Closed状态后才能关闭TcpConnection
     if (i.second && i.second.use_count() > 0 && i.second->getState() == Closed) {
       // need to delete TcpConnection
-      DebugLog << "TcpConection [fd:" << i.first << "] will delete, state=" << i.second->getState();
+      RpcDebugLog << "TcpConection [fd:" << i.first << "] will delete, state=" << i.second->getState();
       (i.second).reset();
       // s_conn.reset();
     }

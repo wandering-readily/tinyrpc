@@ -10,7 +10,7 @@ void StringUtil::SplitStrToMap(const std::string& str, const std::string& split_
     const std::string& joiner, std::map<std::string, std::string>& res) {
 
   if (str.empty() || split_str.empty() || joiner.empty()) {
-    DebugLog << "str or split_str or joiner_str is empty";
+    RpcDebugLog << "str or split_str or joiner_str is empty";
     return;
   }
   const std::string &tmp = str;
@@ -25,7 +25,7 @@ void StringUtil::SplitStrToMap(const std::string& str, const std::string& split_
       if (j != i.npos && j != 0) {
         std::string key = i.substr(0, j);
         std::string value = i.substr(j + joiner.length(), i.length() - j - joiner.length());
-        DebugLog << "insert key = " << key << ", value=" << value;
+        RpcDebugLog << "insert key = " << key << ", value=" << value;
         res[key.c_str()] = value;
       }
     }
@@ -37,7 +37,7 @@ void StringUtil::SplitStrToVector(const std::string& str, const std::string& spl
     std::vector<std::string>& res) {
 
   if (str.empty() || split_str.empty()) {
-    // DebugLog << "str or split_str is empty";
+    // RpcDebugLog << "str or split_str is empty";
     return;
   }
   // 这里已经拷贝了，因此上一级函数不用拷贝std::string str

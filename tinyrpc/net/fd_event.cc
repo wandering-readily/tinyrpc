@@ -10,7 +10,7 @@ static pthread_once_t once_gFdContainer = PTHREAD_ONCE_INIT;
 
 FdEvent::FdEvent(tinyrpc::Reactor* reactor, int fd/*=-1*/) : m_fd(fd), m_reactor(reactor) {
     if (reactor == nullptr) {
-      ErrorLog << "create reactor first";
+      RpcErrorLog << "create reactor first";
     }
     // assert(reactor != nullptr);
 }
@@ -29,7 +29,7 @@ void FdEvent::handleEvent(int flag) {
   } else if (flag == WRITE) {
     m_write_callback();
   } else {
-    ErrorLog << "error flag";
+    RpcErrorLog << "error flag";
   }
 
 }
@@ -41,7 +41,7 @@ void FdEvent::setCallBack(IOEvent flag, std::function<void()> cb) {
   } else if (flag == WRITE) {
     m_write_callback = cb;
   } else {
-    ErrorLog << "error flag";
+    RpcErrorLog << "error flag";
   }
 }
 
@@ -59,23 +59,23 @@ std::function<void()> FdEvent::getCallBack(IOEvent flag) const {
 // 这俩个事件可以保证多线程安全
 void FdEvent::addListenEvents(IOEvent event) {
   if (m_listen_events & event) {
-    DebugLog << "already has this event, skip";
+    RpcDebugLog << "already has this event, skip";
     return;
   }
   m_listen_events |= event;
   updateToReactor();
-  // DebugLog << "add succ";
+  // RpcDebugLog << "add succ";
 }
 
 void FdEvent::delListenEvents(IOEvent event) {
   if (m_listen_events & event) {
 
-    DebugLog << "delete succ";
+    RpcDebugLog << "delete succ";
     m_listen_events &= ~event;
     updateToReactor();
     return;
   }
-  DebugLog << "this event not exist, skip";
+  RpcDebugLog << "this event not exist, skip";
 
 }
 
@@ -87,9 +87,8 @@ void FdEvent::updateToReactor() {
   // ???
   // event设置事件ptr
   event.data.ptr = this;
-  // DebugLog << "reactor = " << m_reactor << "log m_tid =" << m_reactor->getTid();
+  // RpcDebugLog << "reactor = " << m_reactor << "log m_tid =" << m_reactor->getTid();
   if (!m_reactor) {
-    // ???
     // 返回的是线程的主reactor
     m_reactor = tinyrpc::Reactor::GetReactor();
   }
@@ -100,8 +99,6 @@ void FdEvent::updateToReactor() {
 
 void FdEvent::unregisterFromReactor () {
   if (!m_reactor) {
-    // ???
-    // 返回的是线程的主reactor
     m_reactor = tinyrpc::Reactor::GetReactor();
   }
   // 删除事件
@@ -133,29 +130,29 @@ void FdEvent::setReactor(Reactor* r) {
 
 void FdEvent::setNonBlock() {
   if (m_fd == -1) {
-    ErrorLog << "error, fd=-1";
+    RpcErrorLog << "error, fd=-1";
     return;
   }
 
   int flag = fcntl(m_fd, F_GETFL, 0); 
   if (flag & O_NONBLOCK) {
-    DebugLog << "fd already set o_nonblock";
+    RpcDebugLog << "fd already set o_nonblock";
     return;
   }
 
   fcntl(m_fd, F_SETFL, flag | O_NONBLOCK);
   flag = fcntl(m_fd, F_GETFL, 0); 
   if (flag & O_NONBLOCK) {
-    DebugLog << "succ set o_nonblock";
+    RpcDebugLog << "succ set o_nonblock";
   } else {
-    ErrorLog << "set o_nonblock error";
+    RpcErrorLog << "set o_nonblock error";
   }
 
 }
 
 bool FdEvent::isNonBlock() {
   if (m_fd == -1) {
-    ErrorLog << "error, fd=-1";
+    RpcErrorLog << "error, fd=-1";
     return false;
   }
   int flag = fcntl(m_fd, F_GETFL, 0); 

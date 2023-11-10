@@ -88,13 +88,14 @@ private:
 
 class MySQLInstaseFactroy {
  public:
-  MySQLInstaseFactroy() = default;
+  MySQLInstaseFactroy(std::map<std::string, MySQLOption> mysql_options) : m_mysql_options(mysql_options) {}
 
   ~MySQLInstaseFactroy() = default;
 
   MySQLInstase::ptr GetMySQLInstase(const std::string& key);
  public:
-  static MySQLInstaseFactroy* GetThreadMySQLFactory();
+  static MySQLInstaseFactroy* GetThreadMySQLFactory(std::map<std::string, MySQLOption>);
+  std::map<std::string, MySQLOption> m_mysql_options;
 
 };
 

@@ -20,7 +20,7 @@ class TcpClient {
  public:
   typedef std::shared_ptr<TcpClient> ptr;
 
-  TcpClient(NetAddress::ptr addr, ProtocalType type = TinyPb_Protocal);
+  TcpClient(NetAddress::ptr addr, ProtocalType type = tinyrpc::ProtocalType::TinyPb_Protocal);
 
   ~TcpClient();
 

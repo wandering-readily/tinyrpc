@@ -79,11 +79,9 @@ int main(int argc, char* argv[]) {
     return 0;
   }
 
-  tinyrpc::InitConfig(argv[1]);
+  tinyrpc::TinyrpcRunner runner(argv[1]);
+  runner.registerService(std::make_shared<QueryServiceImpl>());
+  runner.StartService();
 
-  REGISTER_SERVICE(QueryServiceImpl);
-
-  tinyrpc::StartRpcServer();
-  
   return 0;
 }

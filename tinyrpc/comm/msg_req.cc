@@ -4,6 +4,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <random>
+#include <atomic>
 #include "tinyrpc/comm/log.h"
 #include "tinyrpc/comm/config.h"
 #include "tinyrpc/comm/msg_req.h"
@@ -11,11 +12,20 @@
 
 namespace tinyrpc {
 
-extern tinyrpc::Config::ptr gRpcConfig;
-
 static thread_local std::string t_msg_req_nu;
 static thread_local std::string t_max_msg_req_nu;
-// static thread_local int t_msg_req_len = 20;
+// config每个进程只读一次，确保在进程主线程读取config时后不发生改变
+static std::atomic_int t_msg_req_len = 20;
+static std::atomic_bool t_msg_req_len_inited = false;
+bool Init_t_msg_req_len(int msg_req_len) {
+  if (!t_msg_req_len_inited) {
+    t_msg_req_len = msg_req_len;
+    t_msg_req_len_inited = true;
+    return true;
+  }
+  return false;
+}
+
 
 class randomgFDRAII {
 public:
@@ -52,11 +62,6 @@ void createRandomFd() {
 
 std::string MsgReqUtil::genMsgNumber() {
 
-  int t_msg_req_len = 20;
-  if (gRpcConfig) {
-    t_msg_req_len = gRpcConfig->m_msg_req_len;
-  }
-
   if (t_msg_req_nu.empty() || t_msg_req_nu == t_max_msg_req_nu) {
     // ???
     // 这里存在多线程问题？
@@ -70,7 +75,7 @@ std::string MsgReqUtil::genMsgNumber() {
     } 
     std::string res(t_msg_req_len, 0);
     if ((read(g_random_fd, &res[0], t_msg_req_len)) != t_msg_req_len) {
-      ErrorLog << "read /dev/urandom data less " << t_msg_req_len << " bytes";
+      RpcErrorLog << "read /dev/urandom data less " << t_msg_req_len << " bytes";
       return "";
     }
     t_max_msg_req_nu = "";
@@ -95,7 +100,7 @@ std::string MsgReqUtil::genMsgNumber() {
     }
 
   }    
-  // DebugLog << "get msg_req_nu is " << t_msg_req_nu;
+  // RpcDebugLog << "get msg_req_nu is " << t_msg_req_nu;
   return t_msg_req_nu;
 }
 

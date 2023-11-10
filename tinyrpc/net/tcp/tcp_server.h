@@ -55,7 +55,8 @@ class TcpServer {
 
   typedef std::shared_ptr<TcpServer> ptr;
 
-	TcpServer(NetAddress::ptr addr, ProtocalType type = TinyPb_Protocal);
+	// TcpServer(NetAddress::ptr addr, ProtocalType type = TinyPb_Protocal);
+	TcpServer(Config *config);
 
   ~TcpServer();
 
@@ -111,7 +112,7 @@ class TcpServer {
 
   IOThreadPool::ptr m_io_pool;
 
-  ProtocalType m_protocal_type {TinyPb_Protocal};
+  ProtocalType m_protocal_type {tinyrpc::ProtocalType::TinyPb_Protocal};
 
   TcpTimeWheel::ptr m_time_wheel;
 

@@ -8,7 +8,7 @@
 namespace tinyrpc {
 
 extern const char* default_html_template;
-extern std::string content_type_text;
+extern const std::string content_type_text;
 
 
 HttpServlet::HttpServlet() {
@@ -23,7 +23,7 @@ void HttpServlet::handle(HttpRequest* req, HttpResponse* res) {
 }
 
 void HttpServlet::handleNotFound(HttpRequest* req, HttpResponse* res) {
-  DebugLog << "return 404 html";
+  RpcDebugLog << "return 404 html";
   setHttpCode(res, HTTP_NOTFOUND);
   char buf[512];
   sprintf(buf, default_html_template, std::to_string(HTTP_NOTFOUND).c_str(), httpCodeToString(HTTP_NOTFOUND));
@@ -48,7 +48,7 @@ void HttpServlet::setHttpBody(HttpResponse* res, const std::string& body) {
 
 // 设置request和response共同的回复
 void HttpServlet::setCommParam(HttpRequest* req, HttpResponse* res) {
-  DebugLog << "set response version=" << req->m_request_version;
+  RpcDebugLog << "set response version=" << req->m_request_version;
   res->m_response_version = req->m_request_version;
   res->m_response_header.m_maps["Connection"]= req->m_requeset_header.m_maps["Connection"];
 }

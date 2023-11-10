@@ -8,41 +8,52 @@
 #include "tinyrpc/comm/log.h"
 #include "tinyrpc/net/tcp/tcp_server.h"
 #include "tinyrpc/net/timer.h"
+#include "tinyrpc/net/net_address.h"
 
 namespace tinyrpc {
 
 
-#define REGISTER_HTTP_SERVLET(path, servlet) \
- do { \
-  if(!tinyrpc::GetServer()->registerHttpServlet(path, std::make_shared<servlet>())) { \
-    printf("Start TinyRPC server error, because register http servelt error, please look up rpc log get more details!\n"); \
-    tinyrpc::Exit(0); \
-  } \
- } while(0)\
+class TinyrpcRunner {
 
-#define REGISTER_SERVICE(service) \
- do { \
-  if (!tinyrpc::GetServer()->registerService(std::make_shared<service>())) { \
-    printf("Start TinyRPC server error, because register protobuf service error, please look up rpc log get more details!\n"); \
-    tinyrpc::Exit(0); \
-  } \
- } while(0)\
+public:
+  TinyrpcRunner(const char *configName) : configName_(configName) {}
+  TinyrpcRunner(const std::string &configName) : configName_(configName) {}
+  TinyrpcRunner(std::string &&configName) : configName_(std::move(configName)) {}
+
+  ~TinyrpcRunner()=default;
+
+  TinyrpcRunner(const TinyrpcRunner &)=delete;
+  TinyrpcRunner(TinyrpcRunner &&)=delete;
+  TinyrpcRunner &operator=(const TinyrpcRunner &)=delete;
+  TinyrpcRunner &operator=(TinyrpcRunner &&)=delete;
 
 
-void InitConfig(const char* file);
+  void RegisterHttpServlet(const std::string &, HttpServlet::ptr);
+  void RegisterService(std::shared_ptr<google::protobuf::Service>);
 
-// void RegisterService(google::protobuf::Service* service);
 
-void StartRpcServer();
+  TcpServer::ptr GetServer();
+  Config::ptr GetConfig();
+  int GetIOThreadPoolSize();
 
-TcpServer::ptr GetServer();
+  void StartService();
 
-int GetIOThreadPoolSize();
+  void AddTimerEvent(TimerEvent::ptr);
 
-Config::ptr GetConfig();
+private:
+  void InitConfig();
+  void InitLogger(std::shared_ptr<Logger> &);
+  void InitServer();
+  void StartRpcServer(std::shared_ptr<Logger> &);
 
-void AddTimerEvent(TimerEvent::ptr event);
+private:
+  int g_init_config = 0;
+  std::string configName_;
 
-}
+  Config::ptr gRpcConfig_;
+  TcpServer::ptr gRpcServer_;
+};
+
+}; // namespace tinyrpc
 
 #endif

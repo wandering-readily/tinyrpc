@@ -19,13 +19,13 @@ TcpClient::TcpClient(NetAddress::ptr addr, ProtocalType type /*= TinyPb_Protocal
   m_family = m_peer_addr->getFamily();
   m_fd = socket(AF_INET, SOCK_STREAM, 0);
   if (m_fd == -1) {
-    ErrorLog << "call socket error, fd=-1, sys error=" << strerror(errno);
+    RpcErrorLog << "call socket error, fd=-1, sys error=" << strerror(errno);
   }
-  DebugLog << "TcpClient() create fd = " << m_fd;
+  RpcDebugLog << "TcpClient() create fd = " << m_fd;
   m_local_addr = std::make_shared<tinyrpc::IPAddress>("127.0.0.1", 0);
   m_reactor = Reactor::GetReactor();
 
-  if (type == Http_Protocal) {
+  if (type == ProtocalType::Http_Protocal) {
 		m_codec = std::make_shared<HttpCodeC>();
 	} else {
 		m_codec = std::make_shared<TinyPbCodeC>();
@@ -40,7 +40,7 @@ TcpClient::~TcpClient() {
   if (m_fd > 0) {
     FdEventContainer::GetFdContainer()->getFdEvent(m_fd)->unregisterFromReactor(); 
     close(m_fd);
-    DebugLog << "~TcpClient() close fd = " << m_fd;
+    RpcDebugLog << "~TcpClient() close fd = " << m_fd;
   }
 }
 
@@ -56,7 +56,7 @@ void TcpClient::resetFd() {
   close(m_fd);
   m_fd = socket(AF_INET, SOCK_STREAM, 0);
   if (m_fd == -1) {
-    ErrorLog << "call socket error, fd=-1, sys error=" << strerror(errno);
+    RpcErrorLog << "call socket error, fd=-1, sys error=" << strerror(errno);
   } else {
 
   }
@@ -71,7 +71,7 @@ int TcpClient::sendAndRecvTinyPb(const std::string& msg_no, TinyPbStruct::pb_ptr
   // 此时timeout，设置m_is_over_time=true
   // 这样就会打断client等待服务器回复的循环
   auto timer_cb = [this, &is_timeout, cur_cor]() {
-    InfoLog << "TcpClient timer out event occur";
+    RpcInfoLog << "TcpClient timer out event occur";
     // is_timeout设置，且m_connection也设置超时
     is_timeout = true;
     this->m_connection->setOverTimeFlag(true); 
@@ -83,15 +83,15 @@ int TcpClient::sendAndRecvTinyPb(const std::string& msg_no, TinyPbStruct::pb_ptr
   TimerEvent::ptr event = std::make_shared<TimerEvent>(m_max_timeout, false, timer_cb);
   m_reactor->getTimer()->addTimerEvent(event);
 
-  DebugLog << "add rpc timer event, timeout on " << event->m_arrive_time;
+  RpcDebugLog << "add rpc timer event, timeout on " << event->m_arrive_time;
 
   while (!is_timeout) {
-    DebugLog << "begin to connect";
+    RpcDebugLog << "begin to connect";
     if (m_connection->getState() != Connected) {
       // client connect连接服务器
       int rt = connect_hook(m_fd, reinterpret_cast<sockaddr*>(m_peer_addr->getSockAddr()), m_peer_addr->getSockLen());
       if (rt == 0) {
-        DebugLog << "connect [" << m_peer_addr->toString() << "] succ!";
+        RpcDebugLog << "connect [" << m_peer_addr->toString() << "] succ!";
         // 设置已连接
         m_connection->setUpClient();
         break;
@@ -100,7 +100,7 @@ int TcpClient::sendAndRecvTinyPb(const std::string& msg_no, TinyPbStruct::pb_ptr
       resetFd();
       if (is_timeout) {
         // m_connection超时后仍未连接上
-        InfoLog << "connect timeout, break";
+        RpcInfoLog << "connect timeout, break";
         goto err_deal;
       }
       if (errno == ECONNREFUSED) {
@@ -109,7 +109,7 @@ int TcpClient::sendAndRecvTinyPb(const std::string& msg_no, TinyPbStruct::pb_ptr
         std::stringstream ss;
         ss << "connect error, peer[ " << m_peer_addr->toString() <<  " ] closed.";
         m_err_info = ss.str();
-        ErrorLog << "cancle overtime event, err info=" << m_err_info;
+        RpcErrorLog << "cancle overtime event, err info=" << m_err_info;
         // 删除之前的定时事件
         m_reactor->getTimer()->delTimerEvent(event);
         return ERROR_PEER_CLOSED;
@@ -119,7 +119,7 @@ int TcpClient::sendAndRecvTinyPb(const std::string& msg_no, TinyPbStruct::pb_ptr
         std::stringstream ss;
         ss << "connect cur sys ror, errinfo is " << std::string(strerror(errno)) <<  " ] closed.";
         m_err_info = ss.str();
-        ErrorLog << "cancle overtime event, err info=" << m_err_info;
+        RpcErrorLog << "cancle overtime event, err info=" << m_err_info;
         m_reactor->getTimer()->delTimerEvent(event);
         return ERROR_CONNECT_SYS_ERR;
 
@@ -142,24 +142,24 @@ int TcpClient::sendAndRecvTinyPb(const std::string& msg_no, TinyPbStruct::pb_ptr
   // 把protobuf格式的request任务发送给服务器
   m_connection->output();
   if (m_connection->getOverTimerFlag()) {
-    InfoLog << "send data over time";
+    RpcInfoLog << "send data over time";
     is_timeout = true;
     goto err_deal;
   }
 
   // 如果没收到msg_no对应的服务器回复，那么一直等待
   while (!m_connection->getResPackageData(msg_no, res)) {
-    DebugLog << "redo getResPackageData";
+    RpcDebugLog << "redo getResPackageData";
     m_connection->input();
 
     // 如果接收服务器回复超市的话，那么进入错误处理
     if (m_connection->getOverTimerFlag()) {
-      InfoLog << "read data over time";
+      RpcInfoLog << "read data over time";
       is_timeout = true;
       goto err_deal;
     }
     if (m_connection->getState() == Closed) {
-      InfoLog << "peer close";
+      RpcInfoLog << "peer close";
       goto err_deal;
     }
 

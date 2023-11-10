@@ -9,7 +9,7 @@
 
 namespace tinyrpc {
 
-enum ProtocalType {
+enum class ProtocalType {
   TinyPb_Protocal = 1,
   Http_Protocal = 2
 };

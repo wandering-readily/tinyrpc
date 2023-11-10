@@ -12,7 +12,7 @@ Memory::Memory(int block_size, int block_count) : m_block_size(block_size), m_bl
   m_size = m_block_count * m_block_size;
   m_start = (char*)malloc(m_size);
   assert(m_start != (void*)-1);
-  InfoLog << "succ mmap " << m_size << " bytes memory";
+  RpcInfoLog << "succ mmap " << m_size << " bytes memory";
   m_end = m_start + m_size - 1;
   m_blocks.resize(m_block_count);
   for (size_t i = 0; i < m_blocks.size(); ++i) {
@@ -29,9 +29,9 @@ Memory::Memory(int block_size, int block_count) : m_block_size(block_size), m_bl
 //   }
 //   int rt = free(m_start);
 //   if (rt != 0) {
-//     ErrorLog << "munmap error, error=" << strerror(errno);
+//     RpcErrorLog << "munmap error, error=" << strerror(errno);
 //   }
-//   InfoLog << "~succ free munmap " << m_size << " bytes memory";
+//   RpcInfoLog << "~succ free munmap " << m_size << " bytes memory";
 //   m_start = NULL;
 //   m_ref_counts = 0;
 // }
@@ -41,7 +41,7 @@ Memory::~Memory() {
     return;
   }
   free(m_start);
-  InfoLog << "~succ free munmap " << m_size << " bytes memory";
+  RpcInfoLog << "~succ free munmap " << m_size << " bytes memory";
   m_start = NULL;
   m_ref_counts = 0;
 }
@@ -99,7 +99,7 @@ char* Memory::getBlockBlocked() {
 
 void Memory::backBlock(char* s) {
   if (s > m_end || s < m_start) {
-    ErrorLog << "error, this block is not belong to this Memory";
+    RpcErrorLog << "error, this block is not belong to this Memory";
     return;
   }
   int i = (s - m_start) / m_block_size;

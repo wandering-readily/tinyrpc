@@ -181,13 +181,11 @@ int main(int argc, char* argv[]) {
     return 0;
   }
 
-  tinyrpc::InitConfig(argv[1]);
+  tinyrpc::TinyrpcRunner runner(argv[1]);
+  runner.RegisterHttpServlet("/qps", std::make_shared<QPSHttpServlet>());
+  runner.RegisterHttpServlet("/block", std::make_shared<BlockCallHttpServlet>());
+  runner.RegisterHttpServlet("/qps", std::make_shared<NonBlockCallHttpServlet>());
+  runner.StartService();
 
-  REGISTER_HTTP_SERVLET("/qps", QPSHttpServlet);
-
-  REGISTER_HTTP_SERVLET("/block", BlockCallHttpServlet);
-  REGISTER_HTTP_SERVLET("/nonblock", NonBlockCallHttpServlet);
-
-  tinyrpc::StartRpcServer();
   return 0;
 }

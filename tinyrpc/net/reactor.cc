@@ -31,37 +31,37 @@ Reactor::Reactor() {
   // one thread can't create more than one reactor object!!
   // assert(t_reactor_ptr == nullptr);
 	if (t_reactor_ptr != nullptr) {
-		ErrorLog << "this thread has already create a reactor";
+		RpcErrorLog << "this thread has already create a reactor";
 		Exit(0);
 	}
 
   m_tid = gettid();
 
-  DebugLog << "thread[" << m_tid << "] succ create a reactor object";
+  RpcDebugLog << "thread[" << m_tid << "] succ create a reactor object";
   t_reactor_ptr = this;
 
   // epollfd创建
   if((m_epfd = epoll_create(1)) <= 0 ) {
-		ErrorLog << "start server error. epoll_create error, sys error=" << strerror(errno);
+		RpcErrorLog << "start server error. epoll_create error, sys error=" << strerror(errno);
 		Exit(0);
 	} else {
-		DebugLog << "m_epfd = " << m_epfd;
+		RpcDebugLog << "m_epfd = " << m_epfd;
 	}
   // assert(m_epfd > 0);
 
   // eventfd唤醒事件
 	if((m_wake_fd = eventfd(0, EFD_NONBLOCK)) <= 0 ) {
-		ErrorLog << "start server error. event_fd error, sys error=" << strerror(errno);
+		RpcErrorLog << "start server error. event_fd error, sys error=" << strerror(errno);
 		Exit(0);
 	}
-	DebugLog << "wakefd = " << m_wake_fd;
+	RpcDebugLog << "wakefd = " << m_wake_fd;
   // assert(m_wake_fd > 0);	
 	addWakeupFd();
 
 }
 
 Reactor::~Reactor() {
-  DebugLog << "~Reactor";
+  RpcDebugLog << "~Reactor";
 	close(m_epfd);
   if (m_timer != nullptr) {
     delete m_timer;
@@ -73,10 +73,10 @@ Reactor::~Reactor() {
 // 获得当前线程的reactor
 Reactor* Reactor::GetReactor() {
   if (t_reactor_ptr == nullptr) {
-		DebugLog << "Create new Reactor";
+		RpcDebugLog << "Create new Reactor";
     t_reactor_ptr = new Reactor();
   }
-	// DebugLog << "t_reactor_ptr = " << t_reactor_ptr;
+	// RpcDebugLog << "t_reactor_ptr = " << t_reactor_ptr;
   return t_reactor_ptr; 
 }
 
@@ -93,7 +93,7 @@ Reactor* Reactor::GetReactor() {
 // call by other threads, need lock
 void Reactor::addEvent(int fd, epoll_event event, bool is_wakeup/*=true*/) {
   if (fd == -1) {
-    ErrorLog << "add error. fd invalid, fd = -1";
+    RpcErrorLog << "add error. fd invalid, fd = -1";
     return;
   }
   // 如果在本线程，添加事件后退出
@@ -115,7 +115,7 @@ void Reactor::addEvent(int fd, epoll_event event, bool is_wakeup/*=true*/) {
 void Reactor::delEvent(int fd, bool is_wakeup/*=true*/) {
 
   if (fd == -1) {
-    ErrorLog << "add error. fd invalid, fd = -1";
+    RpcErrorLog << "add error. fd invalid, fd = -1";
     return;
   }
 
@@ -145,17 +145,17 @@ void Reactor::wakeup() {
 	uint64_t tmp = 1;
 	uint64_t* p = &tmp; 
 	if(g_sys_write_fun(m_wake_fd, p, 8) != 8) {
-		ErrorLog << "write wakeupfd[" << m_wake_fd <<"] error";
+		RpcErrorLog << "write wakeupfd[" << m_wake_fd <<"] error";
 	}
 }
 
 // m_tid only can be writed in Reactor::Reactor, so it needn't to lock 
 bool Reactor::isLoopThread() const {
 	if (m_tid == gettid()) {
-		// DebugLog << "return true";
+		// RpcDebugLog << "return true";
 		return true;
 	}
-	// DebugLog << "m_tid = "<< m_tid << ", getttid = " << gettid() <<"return false";
+	// RpcDebugLog << "m_tid = "<< m_tid << ", getttid = " << gettid() <<"return false";
 	return false;
 }
 
@@ -168,7 +168,7 @@ void Reactor::addWakeupFd() {
 	event.data.fd = m_wake_fd;
 	event.events = EPOLLIN;
 	if ((epoll_ctl(m_epfd, op, m_wake_fd, &event)) != 0) {
-		ErrorLog << "epoo_ctl error, fd[" << m_wake_fd << "], errno=" << errno << ", err=" << strerror(errno) ;
+		RpcErrorLog << "epoo_ctl error, fd[" << m_wake_fd << "], errno=" << errno << ", err=" << strerror(errno) ;
 	}
 	m_fds.push_back(m_wake_fd);
 
@@ -193,13 +193,13 @@ void Reactor::addEventInLoopThread(int fd, epoll_event event) {
 	// event.events = fd_event->getListenEvents();
 
 	if (epoll_ctl(m_epfd, op, fd, &event) != 0) {
-		ErrorLog << "epoo_ctl error, fd[" << fd << "], sys errinfo = " << strerror(errno);
+		RpcErrorLog << "epoo_ctl error, fd[" << fd << "], sys errinfo = " << strerror(errno);
 		return;
 	}
 	if (is_add) {
 		m_fds.push_back(fd);
 	}
-	DebugLog << "epoll_ctl add succ, fd[" << fd << "]"; 
+	RpcDebugLog << "epoll_ctl add succ, fd[" << fd << "]"; 
 
 }
 
@@ -211,17 +211,17 @@ void Reactor::delEventInLoopThread(int fd) {
 
 	auto it = find(m_fds.begin(), m_fds.end(), fd);
 	if (it == m_fds.end()) {
-		DebugLog << "fd[" << fd << "] not in this loop";
+		RpcDebugLog << "fd[" << fd << "] not in this loop";
 		return;
 	}
 	int op = EPOLL_CTL_DEL;
 
 	if ((epoll_ctl(m_epfd, op, fd, nullptr)) != 0) {
-		ErrorLog << "epoo_ctl error, fd[" << fd << "], sys errinfo = " << strerror(errno);
+		RpcErrorLog << "epoo_ctl error, fd[" << fd << "], sys errinfo = " << strerror(errno);
 	}
 
 	m_fds.erase(it);
-	DebugLog << "del succ, fd[" << fd << "]"; 
+	RpcDebugLog << "del succ, fd[" << fd << "]"; 
 	
 }
 
@@ -236,7 +236,7 @@ void Reactor::loop() {
 
   assert(isLoopThread());
   if (m_is_looping) {
-    // DebugLog << "this reactor is looping!";
+    // RpcDebugLog << "this reactor is looping!";
     return;
   }
   
@@ -269,7 +269,8 @@ void Reactor::loop() {
       while(1) {
         ptr = CoroutineTaskQueue::GetCoroutineTaskQueue()->pop();
         if (ptr) {
-          // 设置FdEvent的reactor为本reactor
+          // reactor和IOThread绑定
+          // 事件取出时, 要绑定与之相关的IOThread和协程
           ptr->setReactor(this);
           // 然后将切换FdEvent所属的协程
           // ???
@@ -288,7 +289,7 @@ void Reactor::loop() {
     }
 
 
-		// DebugLog << "task";
+		// RpcDebugLog << "task";
 		// excute tasks
     /*
      * 
@@ -304,13 +305,13 @@ void Reactor::loop() {
 
     // 执行任务
 		for (size_t i = 0; i < tmp_tasks.size(); ++i) {
-			// DebugLog << "begin to excute task[" << i << "]";
+			// RpcDebugLog << "begin to excute task[" << i << "]";
 			if (tmp_tasks[i]) {
 				tmp_tasks[i]();
 			}
-			// DebugLog << "end excute tasks[" << i << "]";
+			// RpcDebugLog << "end excute tasks[" << i << "]";
 		}
-		// DebugLog << "to epoll_wait";
+		// RpcDebugLog << "to epoll_wait";
     /*
      * 
      * !!!
@@ -321,12 +322,12 @@ void Reactor::loop() {
      */
 		int rt = epoll_wait(m_epfd, re_events, MAX_EVENTS, t_max_epoll_timeout);
 
-		// DebugLog << "epoll_wait back";
+		// RpcDebugLog << "epoll_wait back";
 
 		if (rt < 0) {
-			ErrorLog << "epoll_wait error, skip, errno=" << strerror(errno);
+			RpcErrorLog << "epoll_wait error, skip, errno=" << strerror(errno);
 		} else {
-			// DebugLog << "epoll_wait back, rt = " << rt;
+			// RpcDebugLog << "epoll_wait back, rt = " << rt;
 			for (int i = 0; i < rt; ++i) {
 				epoll_event one_event = re_events[i];	
 
@@ -340,7 +341,7 @@ void Reactor::loop() {
          */
 				if (one_event.data.fd == m_wake_fd && (one_event.events & READ)) {
 					// wakeup
-					// DebugLog << "epoll wakeup, fd=[" << m_wake_fd << "]";
+					// RpcDebugLog << "epoll wakeup, fd=[" << m_wake_fd << "]";
 					char buf[8];
 					while(1) {
 						if((g_sys_read_fun(m_wake_fd, buf, 8) == -1) && errno == EAGAIN) {
@@ -358,7 +359,7 @@ void Reactor::loop() {
             if ((!(one_event.events & EPOLLIN)) && (!(one_event.events & EPOLLOUT))){
               // ???
               // 不知道如何处理的事件?
-              ErrorLog << "socket [" << fd << "] occur other unknow event:[" << one_event.events << "], need unregister this socket";
+              RpcErrorLog << "socket [" << fd << "] occur other unknow event:[" << one_event.events << "], need unregister this socket";
               delEventInLoopThread(fd);
             } else {
               // if register coroutine, pengding coroutine to common coroutine_tasks
@@ -373,7 +374,7 @@ void Reactor::loop() {
                 // because every operate CoroutineTaskQueue should add mutex lock
                 // !!!
                 /* 
-                 * 该线程保留的第本地任务
+                 * 该线程保留的本地任务
                  * 避免多个任务放入协程任务池（锁的使用会降低效率）
                  * 如果还想优化，其实可以建立一个本地协程队列
                  */
@@ -387,6 +388,8 @@ void Reactor::loop() {
                   // 如果是子reactor的内容, 从当前reactor删除当前事件
                   // 如果当前SubReactor完成事件后，应该在EPOLL取消事件
                   delEventInLoopThread(fd);
+                  // reactor和IOThread绑定
+                  // 事件要放入协程池时, 要消除关联的IOThread
                   ptr->setReactor(NULL);
                   // 接着把事件ptr放入处理事件的协程池
                   // 每个线程的reactor会在自己的reactor的Loop()中
@@ -433,12 +436,12 @@ void Reactor::loop() {
                 // 其他 没有设置coroutine, 非timer 事件
                 // 将执行事件放入m_pending_tasks
                 if (one_event.events & EPOLLIN) {
-                  // DebugLog << "socket [" << fd << "] occur read event";
+                  // RpcDebugLog << "socket [" << fd << "] occur read event";
                   Mutex::Lock lock(m_mutex);
                   m_pending_tasks.push_back(read_cb);						
                 }
                 if (one_event.events & EPOLLOUT) {
-                  // DebugLog << "socket [" << fd << "] occur write event";
+                  // RpcDebugLog << "socket [" << fd << "] occur write event";
                   Mutex::Lock lock(m_mutex);
                   m_pending_tasks.push_back(write_cb);						
                 }
@@ -473,16 +476,16 @@ void Reactor::loop() {
 			}
       // 从m_pending_tasks取出事件，然后放入thread
 			for (auto i = tmp_add.begin(); i != tmp_add.end(); ++i) {
-				// DebugLog << "fd[" << (*i).first <<"] need to add";
+				// RpcDebugLog << "fd[" << (*i).first <<"] need to add";
 				addEventInLoopThread((*i).first, (*i).second);	
 			}
 			for (auto i = tmp_del.begin(); i != tmp_del.end(); ++i) {
-				// DebugLog << "fd[" << (*i) <<"] need to del";
+				// RpcDebugLog << "fd[" << (*i) <<"] need to del";
 				delEventInLoopThread((*i));	
 			}
 		}
 	}
-  DebugLog << "reactor loop end";
+  RpcDebugLog << "reactor loop end";
   m_is_looping = false;
 }
 

@@ -6,10 +6,10 @@
 
 namespace tinyrpc {
 
-extern std::string g_CRLF;
-extern std::string g_CRLF_DOUBLE;
+extern const std::string g_CRLF;
+extern const std::string g_CRLF_DOUBLE;
 
-extern std::string content_type_text;
+extern const std::string content_type_text;
 extern const char* default_html_template;
 
 enum HttpMethod {

@@ -29,7 +29,7 @@ void TinyPbRpcChannel::CallMethod(const google::protobuf::MethodDescriptor* meth
   TinyPbStruct pb_struct;
   TinyPbRpcController* rpc_controller = dynamic_cast<TinyPbRpcController*>(controller);
   if (!rpc_controller) {
-    ErrorLog << "call failed. falid to dynamic cast TinyPbRpcController";
+    RpcErrorLog << "call failed. falid to dynamic cast TinyPbRpcController";
     return;
   }
 
@@ -38,9 +38,9 @@ void TinyPbRpcChannel::CallMethod(const google::protobuf::MethodDescriptor* meth
   rpc_controller->SetPeerAddr(m_client->getPeerAddr());
   
   pb_struct.service_full_name = method->full_name();
-  DebugLog << "call service_name = " << pb_struct.service_full_name;
+  RpcDebugLog << "call service_name = " << pb_struct.service_full_name;
   if (!request->SerializeToString(&(pb_struct.pb_data))) {
-    ErrorLog << "serialize send package error";
+    RpcErrorLog << "serialize send package error";
     return;
   }
 
@@ -51,10 +51,10 @@ void TinyPbRpcChannel::CallMethod(const google::protobuf::MethodDescriptor* meth
     RunTime* run_time = getCurrentRunTime();
     if(run_time != NULL && !run_time->m_msg_no.empty()) {
       pb_struct.msg_req = run_time->m_msg_no;
-      DebugLog << "get from RunTime succ, msgno = " << pb_struct.msg_req;
+      RpcDebugLog << "get from RunTime succ, msgno = " << pb_struct.msg_req;
     } else {
       pb_struct.msg_req = MsgReqUtil::genMsgNumber();
-      DebugLog << "get from RunTime error, generate new msgno = " << pb_struct.msg_req;
+      RpcDebugLog << "get from RunTime error, generate new msgno = " << pb_struct.msg_req;
     }
     rpc_controller->SetMsgReq(pb_struct.msg_req);
   }
@@ -66,10 +66,10 @@ void TinyPbRpcChannel::CallMethod(const google::protobuf::MethodDescriptor* meth
     return;
   }
 
-  InfoLog << "============================================================";
-  InfoLog << pb_struct.msg_req << "|" << rpc_controller->PeerAddr()->toString() 
+  RpcInfoLog << "============================================================";
+  RpcInfoLog << pb_struct.msg_req << "|" << rpc_controller->PeerAddr()->toString() 
       << "|. Set client send request data:" << request->ShortDebugString();
-  InfoLog << "============================================================";
+  RpcInfoLog << "============================================================";
   m_client->setTimeout(rpc_controller->Timeout());
 
   // !!!
@@ -78,27 +78,27 @@ void TinyPbRpcChannel::CallMethod(const google::protobuf::MethodDescriptor* meth
   int rt = m_client->sendAndRecvTinyPb(pb_struct.msg_req, res_data);
   if (rt != 0) {
     rpc_controller->SetError(rt, m_client->getErrInfo());
-    ErrorLog << pb_struct.msg_req << "|call rpc occur client error, service_full_name=" << pb_struct.service_full_name << ", error_code=" 
+    RpcErrorLog << pb_struct.msg_req << "|call rpc occur client error, service_full_name=" << pb_struct.service_full_name << ", error_code=" 
         << rt << ", error_info = " << m_client->getErrInfo();
     return;
   }
 
   if (!response->ParseFromString(res_data->pb_data)) {
     rpc_controller->SetError(ERROR_FAILED_DESERIALIZE, "failed to deserialize data from server");
-    ErrorLog << pb_struct.msg_req << "|failed to deserialize data";
+    RpcErrorLog << pb_struct.msg_req << "|failed to deserialize data";
     return;
   }
   if (res_data->err_code != 0) {
-    ErrorLog << pb_struct.msg_req << "|server reply error_code=" << res_data->err_code << ", err_info=" << res_data->err_info;
+    RpcErrorLog << pb_struct.msg_req << "|server reply error_code=" << res_data->err_code << ", err_info=" << res_data->err_info;
     rpc_controller->SetError(res_data->err_code, res_data->err_info);
     return;
   }
 
-  InfoLog<< "============================================================";
-  InfoLog<< pb_struct.msg_req << "|" << rpc_controller->PeerAddr()->toString()
+  RpcInfoLog<< "============================================================";
+  RpcInfoLog<< pb_struct.msg_req << "|" << rpc_controller->PeerAddr()->toString()
       << "|call rpc server [" << pb_struct.service_full_name << "] succ" 
       << ". Get server reply response data:" << response->ShortDebugString();
-  InfoLog<< "============================================================";
+  RpcInfoLog<< "============================================================";
 
   // excute callback function
   if (done) {

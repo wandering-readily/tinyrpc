@@ -72,7 +72,7 @@ void TcpBuffer::writeToBuffer(const char* buf, int size) {
 
 void TcpBuffer::readFromBuffer(std::vector<char>& re, int size) {
   if (readAble() == 0) {
-    DebugLog << "read buffer empty!";
+    RpcDebugLog << "read buffer empty!";
     return; 
   }
   int read_size = readAble() > size ? size : readAble();
@@ -120,7 +120,7 @@ void TcpBuffer::clearBuffer() {
 void TcpBuffer::recycleRead(int index) {
   int j = m_read_index + index;
   if (j > (int)m_buffer.size()) {
-    ErrorLog << "recycleRead error";
+    RpcErrorLog << "recycleRead error";
     return;
   }
   m_read_index = j;
@@ -134,7 +134,7 @@ void TcpBuffer::recycleRead(int index) {
 void TcpBuffer::recycleWrite(int index) {
   int j = m_write_index + index;
   if (j > (int)m_buffer.size()) {
-    ErrorLog << "recycleWrite error";
+    RpcErrorLog << "recycleWrite error";
     return;
   }
   m_write_index = j;

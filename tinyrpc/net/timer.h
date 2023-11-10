@@ -24,14 +24,14 @@ class TimerEvent {
   TimerEvent(int64_t interval, bool is_repeated, std::function<void()>task)
     : m_interval(interval), m_is_repeated(is_repeated), m_task(task) {
     m_arrive_time = getNowMs() + m_interval;  	
-    DebugLog << "timeevent will occur at " << m_arrive_time;
+    RpcDebugLogStream << "timeevent will occur at " << m_arrive_time;
   }
 
   // 设置下次到达时间
   void resetTime() {
-    // DebugLog << "reset tiemrevent, origin arrivetime=" << m_arrive_time;
+    RpcDebugLog << "reset tiemrevent, origin arrivetime=" << m_arrive_time;
     m_arrive_time = getNowMs() + m_interval;  	
-    // DebugLog << "reset tiemrevent, now arrivetime=" << m_arrive_time;
+    RpcDebugLog << "reset tiemrevent, now arrivetime=" << m_arrive_time;
     m_is_cancled = false;
   }
 

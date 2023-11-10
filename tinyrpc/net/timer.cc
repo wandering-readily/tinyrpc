@@ -30,11 +30,11 @@ int64_t getNowMs() {
 Timer::Timer(Reactor* reactor) : FdEvent(reactor) {
 
   m_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK|TFD_CLOEXEC);
-  DebugLog << "m_timer fd = " << m_fd;
+  RpcDebugLog << "m_timer fd = " << m_fd;
   if (m_fd == -1) {
-    DebugLog << "timerfd_create error";  
+    RpcDebugLog << "timerfd_create error";  
   }
-  // DebugLog << "timerfd is [" << m_fd << "]";
+  // RpcDebugLog << "timerfd is [" << m_fd << "]";
 	m_read_callback = std::bind(&Timer::onTimer, this);
   addListenEvents(READ);
   // updateToReactor();
@@ -63,10 +63,10 @@ void Timer::addTimerEvent(TimerEvent::ptr event, bool need_reset /*=true*/) {
   }
 
   if (is_reset && need_reset) {
-    DebugLog << "need reset timer";
+    RpcDebugLog << "need reset timer";
     resetArriveTime();
   }
-  // DebugLog << "add timer event succ";
+  // RpcDebugLog << "add timer event succ";
 }
 
 // ???
@@ -91,7 +91,7 @@ void Timer::delTimerEvent(TimerEvent::ptr event) {
   auto it = begin;
   for (it = begin; it != end; it++) {
     if (it->second == event) {
-      DebugLog << "find timer event, now delete it. src arrive time=" << event->m_arrive_time;
+      RpcDebugLog << "find timer event, now delete it. src arrive time=" << event->m_arrive_time;
       break;
     }
   }
@@ -100,7 +100,7 @@ void Timer::delTimerEvent(TimerEvent::ptr event) {
     m_pending_events.erase(it);
   }
   }
-  DebugLog << "del timer event succ, origin arrvite time=" << event->m_arrive_time;
+  RpcDebugLog << "del timer event succ, origin arrvite time=" << event->m_arrive_time;
 }
 
 void Timer::resetArriveTime() {
@@ -132,9 +132,9 @@ void Timer::resetArriveTime() {
   int rt = timerfd_settime(m_fd, 0, &new_value, nullptr);
 
   if (rt != 0) {
-    ErrorLog << "tiemr_settime error, interval=" << interval;
+    RpcErrorLog << "tiemr_settime error, interval=" << interval;
   } else {
-    // DebugLog << "reset timer succ, next occur time=" << (*it).first;
+    // RpcDebugLog << "reset timer succ, next occur time=" << (*it).first;
   }
 
 }
@@ -142,7 +142,7 @@ void Timer::resetArriveTime() {
 // timerfd设置的回调函数
 void Timer::onTimer() {
 
-  // DebugLog << "onTimer, first read data";
+  // RpcDebugLog << "onTimer, first read data";
   // 接受timerfd的通知信息
   char buf[8];
   while(1) {
@@ -178,7 +178,7 @@ void Timer::onTimer() {
 
   // 将事件拿出
 	for (auto i = tmps.begin(); i != tmps.end(); ++i) {
-    // DebugLog << "excute timer event on " << (*i)->m_arrive_time;
+    // RpcDebugLog << "excute timer event on " << (*i)->m_arrive_time;
     // 一个timerEvent只有既允许重复，又没有被cancled才可以继续放进m_pending_events
 		if ((*i)->m_is_repeated && (!(*i)->m_is_cancled)) {
 			(*i)->resetTime();
@@ -190,7 +190,7 @@ void Timer::onTimer() {
 
 	// m_reactor->addTask(tasks);
   for (auto i : tasks) {
-    // DebugLog << "excute timeevent:" << i.first;
+    // RpcDebugLog << "excute timeevent:" << i.first;
     i.second();
   }
 }

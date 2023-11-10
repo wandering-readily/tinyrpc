@@ -5,15 +5,35 @@
 #include "tinyrpc/comm/config.h"
 #include "tinyrpc/comm/log.h"
 #include "tinyrpc/net/tcp/tcp_server.h"
-#include "tinyrpc/net/net_address.h"
 #include <tinyxml/tinyxml.h>
+#include "tinyrpc/net/abstract_codec.h"
 
 
+namespace details {
+
+  tinyrpc::ProtocalType ParseProtocalType(std::string protocalName) {
+    std::transform(protocalName.begin(), protocalName.end(), 
+                    protocalName.begin(), toupper);
+
+    if (protocalName.find("TINYPB") != std::string::npos) {
+      return tinyrpc::ProtocalType::TinyPb_Protocal;
+    }
+    if (protocalName.find("HTTP") != std::string::npos) {
+      return tinyrpc::ProtocalType::Http_Protocal;
+    }
+
+    return tinyrpc::ProtocalType::TinyPb_Protocal;
+  }
+
+}
 
 namespace tinyrpc {
 
-extern tinyrpc::Logger::ptr gRpcLogger;
-extern tinyrpc::TcpServer::ptr gRpcServer;
+extern bool Init_t_msg_req_len(int);
+extern bool Init_m_max_connect_timeout(int);
+extern bool Init_m_cor_pool_size(int);
+extern bool Init_m_cor_stack_size(int);
+
 
 Config::Config(const char* file_path) : m_file_path(std::string(file_path)) {
   m_xml_file = new TiXmlDocument();
@@ -61,11 +81,6 @@ void Config::readLogConfig(TiXmlElement* log_node) {
   node = log_node->FirstChildElement("log_sync_inteval");
   printNodeAndGetTextErrorIfExist(node, "log_sync_inteval");
   m_log_sync_inteval = std::atoi(node->GetText());
-
-  // Logger init
-  gRpcLogger = std::make_shared<Logger>();
-  gRpcLogger->init(m_log_prefix.c_str(), m_log_path.c_str(), 
-                    m_log_max_size, m_log_sync_inteval);
 
 }
 
@@ -161,19 +176,23 @@ void Config::readConf() {
   printNodeAndGetTextErrorIfExist(coroutine_pool_size_node, 
                     "coroutine.coroutine_pool_size");
   int cor_stack_size = std::atoi(coroutine_stack_size_node->GetText());
-  m_cor_stack_size = 1024 * cor_stack_size;
-  m_cor_pool_size = std::atoi(coroutine_pool_size_node->GetText());
+  int m_cor_stack_size = 1024 * cor_stack_size;
+  int m_cor_pool_size = std::atoi(coroutine_pool_size_node->GetText());
+  Init_m_cor_pool_size(m_cor_pool_size);
+  Init_m_cor_stack_size(m_cor_stack_size);
 
   TiXmlElement *msg_req_len_node = 
       root->FirstChildElement("msg_req_len");
   printNodeAndGetTextErrorIfExist(msg_req_len_node, "msg_req_len");
-  m_msg_req_len = std::atoi(msg_req_len_node->GetText());
+  int m_msg_req_len = std::atoi(msg_req_len_node->GetText());
+  Init_t_msg_req_len(m_msg_req_len);
 
   TiXmlElement *max_connect_timeout_node = 
       root->FirstChildElement("max_connect_timeout");
   printNodeAndGetTextErrorIfExist(max_connect_timeout_node, "max_connect_timeout");
   int max_connect_timeout = std::atoi(max_connect_timeout_node->GetText());
-  m_max_connect_timeout = max_connect_timeout * 1000;
+  int m_max_connect_timeout = max_connect_timeout * 1000;
+  Init_m_max_connect_timeout(m_max_connect_timeout);
 
 
   TiXmlElement *iothread_num_node = 
@@ -217,19 +236,12 @@ void Config::readConf() {
             m_file_path.c_str());
     exit(0);
   }
-  std::string protocal = std::string(
+  protocalName = std::string(
         net_node->FirstChildElement("protocal")->GetText());
-  std::transform(protocal.begin(), protocal.end(), 
-                  protocal.begin(), toupper);
+  protocal = details::ParseProtocalType(protocalName);
 
-  tinyrpc::IPAddress::ptr addr = 
-          std::make_shared<tinyrpc::IPAddress>(ip, port);
+  addr = std::make_shared<tinyrpc::IPAddress>(ip, port);
 
-  if (protocal == "HTTP") {
-    gRpcServer = std::make_shared<TcpServer>(addr, Http_Protocal);
-  } else {
-    gRpcServer = std::make_shared<TcpServer>(addr, TinyPb_Protocal);
-  }
 
   char buff[512];
   sprintf(buff, "read config from file [%s]: [log_path: %s], "
@@ -247,10 +259,9 @@ void Config::readConf() {
                 m_msg_req_len, max_connect_timeout, 
                 m_iothread_num, m_timewheel_bucket_num, 
                     m_timewheel_inteval, ip.c_str(), 
-                    port, protocal.c_str());
+                    port, protocalName.c_str());
 
   std::string s(buff);
-  InfoLog << s;
 
   TiXmlElement* database_node = root->FirstChildElement("database");
 

@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <semaphore.h>
 #include <errno.h>
+#include <unistd.h>
 
 #ifdef DECLARE_MYSQL_PLUGIN 
 #include <mysql/mysql.h>
@@ -28,23 +29,37 @@
 
 
 
-
 namespace tinyrpc {
 
-extern tinyrpc::Logger::ptr gRpcLogger;
-extern tinyrpc::Config::ptr gRpcConfig;
+class Logger;
+extern std::shared_ptr<Logger> gRpcLogger;
+
+bool OpenLogger() {
+  return gRpcLogger != nullptr;
+}
+
+std::shared_ptr<Logger> GetGRpcLogger() {
+  return gRpcLogger;
+}
+
+LogTmp::LogTmp(LogLevel level, LogEvent::ptr event) : m_level(level), m_event(event) {}
+
+LogTmp::~LogTmp() {
+  std::string content = m_event->toString();
+  fwrite(content.data(), 1, content.size(), stdout);
+}
 
 
-static std::atomic_int64_t g_rpc_log_index {0};
-static std::atomic_int64_t g_app_log_index {0};
+LogInGrpcLogger::LogInGrpcLogger(LogEvent::ptr event) : m_event(event) {}
+
+LogInGrpcLogger::~LogInGrpcLogger() {
+  m_event->log(); 
+}
+
 
 // flush，然后回收异步处理线程
 void CoredumpHandler(int signal_no) {
-  ErrorLog << "progress received invalid signal, will exit";
   printf("progress received invalid signal, will exit\n");
-  gRpcLogger->stopAndFlush();
-  pthread_join(gRpcLogger->getAsyncLogger()->m_thread, NULL);
-  pthread_join(gRpcLogger->getAsyncAppLogger()->m_thread, NULL);
 
   // 设置默认处理signal_no的信号处理函数
   signal(signal_no, SIG_DFL);
@@ -66,19 +81,7 @@ pid_t gettid() {
   return t_thread_id;
 }
 
-// ?为什么删除呢
-// 原来是没使用啊
-void setLogLevel(LogLevel level) {
-  // g_log_level = level;
-}
 
-
-bool OpenLog() {
-  if (!gRpcLogger) {
-    return false;
-  }
-  return true;
-}
 
 LogEvent::LogEvent(LogLevel level, const char* file_name, int line, const char* func_name, LogType type)
   : m_level(level),
@@ -92,25 +95,35 @@ LogEvent::~LogEvent() {
 
 }
 
+void LogEvent::log() {
+  m_ss << "\n";
+  if (m_type == LogType::RPC_LOG) {
+    gRpcLogger->pushRpcLog(m_ss.str());
+  } else if (m_type == LogType::APP_LOG) {
+    gRpcLogger->pushAppLog(m_ss.str());
+  }
+}
+
 std::string levelToString(LogLevel level) {
   std::string re = "DEBUG";
   switch(level) {
-    case DEBUG:
+    case LogLevel::DEBUG:
       re = "DEBUG";
       return re;
     
-    case INFO:
+    case LogLevel::INFO:
       re = "INFO";
       return re;
 
-    case WARN:
+    case LogLevel::WARN:
       re = "WARN";
       return re;
 
-    case ERROR:
+    case LogLevel::ERROR:
       re = "ERROR";
       return re;
-    case NONE:
+
+    case LogLevel::NONE:
       re = "NONE";
 
     default:
@@ -140,9 +153,9 @@ LogLevel stringToLevel(const std::string& str) {
 
 std::string LogTypeToString(LogType logtype) {
   switch (logtype) {
-    case APP_LOG:
+    case LogType::APP_LOG:
       return "app";
-    case RPC_LOG:
+    case LogType::RPC_LOG:
       return "rpc";
     default:
       return "";
@@ -212,29 +225,7 @@ std::string LogEvent::toString() {
   return getStringStream().str();
 }
 
-// ?
-// 竟然是输出在Logger的buffer里面，不是直接打印？
-void LogEvent::log() {
-  m_ss << "\n";
-  if (m_level >= gRpcConfig->m_log_level && m_type == RPC_LOG) {
-    gRpcLogger->pushRpcLog(m_ss.str());
-  } else if (m_level >= gRpcConfig->m_app_log_level && m_type == APP_LOG) {
-    gRpcLogger->pushAppLog(m_ss.str());
-  }
-}
 
-
-LogTmp::LogTmp(LogEvent::ptr event) : m_event(event) {
-
-}
-
-std::stringstream& LogTmp::getStringStream() {
-  return m_event->getStringStream();
-}
-
-LogTmp::~LogTmp() {
-  m_event->log(); 
-}
 
 Logger::Logger() {
   // cannot do anything which will call LOG ,otherwise is will coredump
@@ -243,16 +234,11 @@ Logger::Logger() {
 
 Logger::~Logger() {
   stopAndFlush();
-  // ???
-  // 由Logger回收内存是不是不太好?
-  // AsuncLogger回收是不是符合RAII定义?
-  // pthread_join(m_async_rpc_logger->m_thread, NULL);
-  // pthread_join(m_async_app_logger->m_thread, NULL);
+
+  pthread_join(m_async_rpc_logger->m_thread, NULL);
+  pthread_join(m_async_app_logger->m_thread, NULL);
 }
 
-Logger* Logger::GetLogger() {
-  return gRpcLogger.get();
-}
 
 void Logger::init(const char* file_name, const char* file_path, int max_size, int sync_inteval) {
   if (!m_is_init) {
@@ -265,8 +251,8 @@ void Logger::init(const char* file_name, const char* file_path, int max_size, in
     // m_buffer.resize(1000000);
 
     // 启动Async保存日志程序
-    m_async_rpc_logger = std::make_shared<AsyncLogger>(file_name, file_path, max_size, RPC_LOG);
-    m_async_app_logger = std::make_shared<AsyncLogger>(file_name, file_path, max_size, APP_LOG);
+    m_async_rpc_logger = std::make_shared<AsyncLogger>(file_name, file_path, max_size, LogType::RPC_LOG);
+    m_async_app_logger = std::make_shared<AsyncLogger>(file_name, file_path, max_size, LogType::APP_LOG);
 
     // 设置信号处理函数
     signal(SIGSEGV, CoredumpHandler);
@@ -325,6 +311,8 @@ void Logger::stopAndFlush() {
   m_async_app_logger->stop();
   m_async_app_logger->flush();
 }
+
+
 
 AsyncLogger::AsyncLogger(const char* file_name, const char* file_path, int max_size, LogType logtype)
   : m_file_name(file_name), m_file_path(file_path), m_max_size(max_size), m_log_type(logtype) {
@@ -450,9 +438,7 @@ void* AsyncLogger::excute(void* arg) {
     }
 
   }
-  // ???
-  // 源代码 if (!ptr->m_file_handle)
-  // 这里难道不是FILR*存在才关闭吗?
+ 
   if (ptr->m_file_handle) {
     fclose(ptr->m_file_handle);
   }
@@ -491,11 +477,6 @@ void Exit(int code) {
   #ifdef DECLARE_MYSQL_PLUGIN
   mysql_library_end();
   #endif
-
-  printf("It's sorry to said we start TinyRPC server error, look up log file to get more deatils!\n");
-  gRpcLogger->stopAndFlush();
-  pthread_join(gRpcLogger->getAsyncLogger()->m_thread, NULL);
-  pthread_join(gRpcLogger->getAsyncAppLogger()->m_thread, NULL);
 
   _exit(code);
 }

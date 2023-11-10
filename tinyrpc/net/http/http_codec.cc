@@ -22,7 +22,7 @@ HttpCodeC::~HttpCodeC() {
 
 
 void HttpCodeC::encode(TcpBuffer* buf, AbstractData* data) {
-  DebugLog << "test encode";
+  RpcDebugLog << "test encode";
   HttpResponse* response = dynamic_cast<HttpResponse*>(data);
   response->encode_succ = false;
 
@@ -31,24 +31,24 @@ void HttpCodeC::encode(TcpBuffer* buf, AbstractData* data) {
     << response->m_response_info << "\r\n" << response->m_response_header.toHttpString()
     << "\r\n" << response->m_response_body;
   std::string http_res = ss.str();
-  DebugLog << "encode http response is:  " << http_res;  
+  RpcDebugLog << "encode http response is:  " << http_res;  
 
   buf->writeToBuffer(http_res.c_str(), http_res.length());
-  DebugLog << "succ encode and write to buffer, writeindex=" << buf->writeIndex();
+  RpcDebugLog << "succ encode and write to buffer, writeindex=" << buf->writeIndex();
   response->encode_succ = true;
-  DebugLog << "test encode end";
+  RpcDebugLog << "test encode end";
 }
 
 void HttpCodeC::decode(TcpBuffer* buf, AbstractData* data) {
-  DebugLog << "test http decode start";
+  RpcDebugLog << "test http decode start";
   std::string strs = "";
   if (!buf || !data) {
-    ErrorLog << "decode error! buf or data nullptr";
+    RpcErrorLog << "decode error! buf or data nullptr";
     return;
   }
   HttpRequest* request = dynamic_cast<HttpRequest*>(data);
   if (!request) {
-    ErrorLog << "not httprequest type";
+    RpcErrorLog << "not httprequest type";
     return;
   }
 
@@ -60,17 +60,17 @@ void HttpCodeC::decode(TcpBuffer* buf, AbstractData* data) {
   // bool is_parse_succ = false;
   int read_size = 0;
   std::string tmp(strs);
-  DebugLog << "pending to parse str:" << tmp << ", total size =" << tmp.size();
+  RpcDebugLog << "pending to parse str:" << tmp << ", total size =" << tmp.size();
   int len = tmp.length();
   while (1) {
     if (!is_parse_request_line) {
       size_t i = tmp.find(g_CRLF);
       if (i == tmp.npos) {
-        DebugLog << "not found CRLF in buffer";
+        RpcDebugLog << "not found CRLF in buffer";
         return;
       }
       if (i == tmp.length() - 2) {
-        DebugLog << "need to read more data";
+        RpcDebugLog << "need to read more data";
         break;
       }
       is_parse_request_line = parseHttpRequestLine(request, tmp.substr(0, i));
@@ -85,11 +85,11 @@ void HttpCodeC::decode(TcpBuffer* buf, AbstractData* data) {
     if (!is_parse_request_header) {
       size_t j  = tmp.find(g_CRLF_DOUBLE);
       if (j == tmp.npos) {
-        DebugLog << "not found CRLF CRLF in buffer";
+        RpcDebugLog << "not found CRLF CRLF in buffer";
         return;
       }
       // if (j == tmp.length() - 4) {
-      //   DebugLog << "need to read more data";
+      //   RpcDebugLog << "need to read more data";
       //   goto parse_error;
       // }
       is_parse_request_header = parseHttpRequestHeader(request, tmp.substr(0, j));
@@ -103,7 +103,7 @@ void HttpCodeC::decode(TcpBuffer* buf, AbstractData* data) {
     if (!is_parse_request_content) {
       int content_len = std::atoi(request->m_requeset_header.m_maps["Content-Length"].c_str());
       if ((int)strs.length() - read_size < content_len) {
-        DebugLog << "need to read more data";
+        RpcDebugLog << "need to read more data";
         return;
       }
       if (request->m_request_method == POST && content_len != 0) {
@@ -118,7 +118,7 @@ void HttpCodeC::decode(TcpBuffer* buf, AbstractData* data) {
 
     }
     if (is_parse_request_line && is_parse_request_header && is_parse_request_header) {
-      DebugLog << "parse http request success, read size is " << read_size << " bytes";
+      RpcDebugLog << "parse http request success, read size is " << read_size << " bytes";
       buf->recycleRead(read_size);
       break;
     }
@@ -127,7 +127,7 @@ void HttpCodeC::decode(TcpBuffer* buf, AbstractData* data) {
   request->decode_succ = true;
   data = request;
 
-  DebugLog << "test http decode end";
+  RpcDebugLog << "test http decode end";
 }
 
 
@@ -143,7 +143,7 @@ bool HttpCodeC::parseHttpRequestLine(HttpRequest* requset, const std::string& tm
   size_t s2 = tmp.find_last_of(" ");
 
   if (s1 == tmp.npos || s2 == tmp.npos || s1 == s2) {
-    ErrorLog << "error read Http Requser Line, space is not 2";
+    RpcErrorLog << "error read Http Requser Line, space is not 2";
     return false;
   }
   std::string method = tmp.substr(0, s1);
@@ -153,7 +153,7 @@ bool HttpCodeC::parseHttpRequestLine(HttpRequest* requset, const std::string& tm
   } else if (method == "POST") {
     requset->m_request_method = HttpMethod::POST;
   } else {
-    ErrorLog << "parse http request request line error, not support http method:" << method;
+    RpcErrorLog << "parse http request request line error, not support http method:" << method;
     return false;
   }
 
@@ -161,7 +161,7 @@ bool HttpCodeC::parseHttpRequestLine(HttpRequest* requset, const std::string& tm
   std::transform(version.begin(), version.end(), version.begin(), toupper);
   // 只支持HTTP/1.1 和 HTTP/1.0
   if (version != "HTTP/1.1" && version != "HTTP/1.0") {
-    ErrorLog << "parse http request request line error, not support http version:" << version;
+    RpcErrorLog << "parse http request request line error, not support http version:" << version;
     return false;
   }
   requset->m_request_version = version;
@@ -171,23 +171,23 @@ bool HttpCodeC::parseHttpRequestLine(HttpRequest* requset, const std::string& tm
   size_t j = url.find("://");
 
   if (j != url.npos && j + 3 >= url.length()) {
-    ErrorLog << "parse http request request line error, bad url:" << url;
+    RpcErrorLog << "parse http request request line error, bad url:" << url;
     return false;
   }
   int l = 0;
   if (j == url.npos) {
-    DebugLog << "url only have path, url is" << url;
+    RpcDebugLog << "url only have path, url is" << url;
   } else {
     // s2 - s1 - 1 (http line)
     //             - (j + 3) (http(s)://)
     // url是定位符位置
     url = url.substr(j + 3, s2 - s1  - j - 4);
-    DebugLog << "delete http prefix, url = " << url;
+    RpcDebugLog << "delete http prefix, url = " << url;
     // 顶级域名后的/位置
     j = url.find_first_of("/");
     l = url.length();
     if (j == url.npos || j == url.length() - 1) {
-      DebugLog << "http request root path, and query is empty";
+      RpcDebugLog << "http request root path, and query is empty";
       return true;
     }
     // 实际的定位符位置
@@ -199,12 +199,12 @@ bool HttpCodeC::parseHttpRequestLine(HttpRequest* requset, const std::string& tm
   j = url.find_first_of("?");
   if (j == url.npos) {
     requset->m_request_path = url;
-    DebugLog << "http request path:" << requset->m_request_path << "and query is empty";
+    RpcDebugLog << "http request path:" << requset->m_request_path << "and query is empty";
     return true;
   }
   requset->m_request_path = url.substr(0, j);
   requset->m_request_query = url.substr(j + 1, l - j - 1);
-  DebugLog << "http request path:" << requset->m_request_path << ", and query:" << requset->m_request_query;
+  RpcDebugLog << "http request path:" << requset->m_request_path << ", and query:" << requset->m_request_query;
   StringUtil::SplitStrToMap(requset->m_request_query, "&", "=", requset->m_query_maps);
   return true;
 
@@ -228,7 +228,7 @@ bool HttpCodeC::parseHttpRequestContent(HttpRequest* requset, const std::string&
 
 
 ProtocalType HttpCodeC::getProtocalType() {
-  return Http_Protocal;
+  return  ProtocalType::Http_Protocal;
 }
 
 }

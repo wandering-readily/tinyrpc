@@ -10,7 +10,7 @@ namespace tinyrpc {
 
 // 多进程 --> 多协程
 // 主协程
-// 多进程(一) <--> 多协程(多) 一多对应?
+// 多进程(多) <--> 多协程(多)
 // main coroutine, every io thread have a main_coroutine
 static thread_local Coroutine* t_main_coroutine = NULL;
 
@@ -70,7 +70,7 @@ Coroutine::Coroutine() {
   t_coroutine_count++;
   memset(&m_coctx, 0, sizeof(m_coctx));
   t_cur_coroutine = this;
-  // DebugLog << "coroutine[" << m_cor_id << "] create";
+  // RpcDebugLog << "coroutine[" << m_cor_id << "] create";
 }
 
 Coroutine::Coroutine(int size, char* stack_ptr) : m_stack_size(size), m_stack_sp(stack_ptr) {
@@ -83,7 +83,7 @@ Coroutine::Coroutine(int size, char* stack_ptr) : m_stack_size(size), m_stack_sp
 
   m_cor_id = t_cur_coroutine_id++;
   t_coroutine_count++;
-  // DebugLog << "coroutine[" << m_cor_id << "] create";
+  // RpcDebugLog << "coroutine[" << m_cor_id << "] create";
 }
 
 Coroutine::Coroutine(int size, char* stack_ptr, std::function<void()> cb)
@@ -99,7 +99,7 @@ Coroutine::Coroutine(int size, char* stack_ptr, std::function<void()> cb)
   setCallBack(cb);
   m_cor_id = t_cur_coroutine_id++;
   t_coroutine_count++;
-  // DebugLog << "coroutine[" << m_cor_id << "] create";
+  // RpcDebugLog << "coroutine[" << m_cor_id << "] create";
 }
 
 // 设置cb相当于能够启用协程
@@ -107,11 +107,11 @@ Coroutine::Coroutine(int size, char* stack_ptr, std::function<void()> cb)
 bool Coroutine::setCallBack(std::function<void()> cb) {
 
   if (this == t_main_coroutine) {
-    ErrorLog << "main coroutine can't set callback";
+    RpcErrorLog << "main coroutine can't set callback";
     return false;
   }
   if (m_is_in_cofunc) {
-    ErrorLog << "this coroutine is in CoFunction";
+    RpcErrorLog << "this coroutine is in CoFunction";
     return false;
   }
 
@@ -149,7 +149,7 @@ bool Coroutine::setCallBack(std::function<void()> cb) {
 
 Coroutine::~Coroutine() {
   t_coroutine_count--;
-  // DebugLog << "coroutine[" << m_cor_id << "] die";
+  // RpcDebugLog << "coroutine[" << m_cor_id << "] die";
 }
 
 Coroutine* Coroutine::GetCurrentCoroutine() {
@@ -181,18 +181,17 @@ form target coroutine back to main coroutine
 ********/
 void Coroutine::Yield() {
   // if (!t_enable_coroutine_swap) {
-  //   ErrorLog << "can't yield, because disable coroutine swap";
+  //   RpcErrorLog << "can't yield, because disable coroutine swap";
   //   return;
   // }
   if (t_main_coroutine == nullptr) {
-    ErrorLog << "main coroutine is nullptr";
+    RpcErrorLog << "main coroutine is nullptr";
     return;
   }
 
   if (t_cur_coroutine == t_main_coroutine) {
-    // ???
     // 主协程一定不能退出?
-    ErrorLog << "current coroutine is main coroutine";
+    RpcErrorLog << "current coroutine is main coroutine";
     return;
   }
   Coroutine* co = t_cur_coroutine;
@@ -200,7 +199,7 @@ void Coroutine::Yield() {
   t_cur_run_time = NULL;
   // 从用户协程退出后 回到主协程
   coctx_swap(&(co->m_coctx), &(t_main_coroutine->m_coctx));
-  // DebugLog << "swap back";
+  // RpcDebugLog << "swap back";
 }
 
 /********
@@ -210,21 +209,21 @@ void Coroutine::Resume(Coroutine* co) {
   // 只有主协程才可以复用其他协程!
   // 创建主协程后，在主协程基础上Resume(co)可以切换至新的协程
   if (t_cur_coroutine != t_main_coroutine) {
-    ErrorLog << "swap error, current coroutine must be main coroutine";
+    RpcErrorLog << "swap error, current coroutine must be main coroutine";
     return;
   }
 
   if (!t_main_coroutine) {
-    ErrorLog << "main coroutine is nullptr";
+    RpcErrorLog << "main coroutine is nullptr";
     return;
   }
   if (!co || !co->m_can_resume) {
-    ErrorLog << "pending coroutine is nullptr or can_resume is false";
+    RpcErrorLog << "pending coroutine is nullptr or can_resume is false";
     return;
   }
 
   if (t_cur_coroutine == co) {
-    DebugLog << "current coroutine is pending cor, need't swap";
+    RpcDebugLog << "current coroutine is pending cor, need't swap";
     return;
   }
 
@@ -233,7 +232,7 @@ void Coroutine::Resume(Coroutine* co) {
 
   // 复用协程后切换到要复用的协程上
   coctx_swap(&(t_main_coroutine->m_coctx), &(co->m_coctx));
-  // DebugLog << "swap back";
+  // RpcDebugLog << "swap back";
 
 }
 

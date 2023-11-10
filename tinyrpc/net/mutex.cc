@@ -22,14 +22,16 @@ CoroutineMutex::~CoroutineMutex() {
 void CoroutineMutex::lock() {
 
   if (Coroutine::IsMainCoroutine()) {
-    ErrorLog << "main coroutine can't use coroutine mutex";
+    RpcErrorLog << "main coroutine can't use coroutine mutex";
     return;
   }
 
   Coroutine* cor = Coroutine::GetCurrentCoroutine();
 
+  // 如果m_lock==false, 那么表明没加锁, 直接Yield()
+  // 否则, 加入等待队列
   bool flag = true;
-  std::queue<tinyrpc::Coroutine *> tmp;
+  std::size_t corsSize;
   {
   Mutex::Lock lock(m_mutex);
   if (!m_lock) {
@@ -37,15 +39,15 @@ void CoroutineMutex::lock() {
     m_lock = true;
   } else {
     m_sleep_cors.push(cor);
-    tmp = m_sleep_cors;
+    corsSize = m_sleep_cors.size();
   }
   }
 
   if(!flag) {
-    DebugLog << "coroutine succ get coroutine mutex";
+    RpcDebugLog << "coroutine succ get coroutine mutex";
   } else {
-    DebugLog << "coroutine yield, pending coroutine mutex, current sleep queue exist ["
-      << tmp.size() << "] coroutines";
+    RpcDebugLog << "coroutine yield, pending coroutine mutex, current sleep queue exist ["
+      << corsSize << "] coroutines";
 
     Coroutine::Yield();
   } 
@@ -53,11 +55,12 @@ void CoroutineMutex::lock() {
 
 void CoroutineMutex::unlock() {
   if (Coroutine::IsMainCoroutine()) {
-    ErrorLog << "main coroutine can't use coroutine mutex";
+    RpcErrorLog << "main coroutine can't use coroutine mutex";
     return;
   }
 
-  Coroutine* cor = NULL;
+  // 如果加过锁，那么代表可能有协程在等待, 直接获取
+  Coroutine* cor = nullptr;
   {
   Mutex::Lock lock(m_mutex);
   if (m_lock) {
@@ -73,7 +76,7 @@ void CoroutineMutex::unlock() {
 
   if (cor) {
     // wakeup the first cor in sleep queue
-    DebugLog << "coroutine unlock, now to resume coroutine[" << cor->getCorId() << "]";
+    RpcDebugLog << "coroutine unlock, now to resume coroutine[" << cor->getCorId() << "]";
 
     tinyrpc::Reactor::GetReactor()->addTask([cor]() {
       tinyrpc::Coroutine::Resume(cor);

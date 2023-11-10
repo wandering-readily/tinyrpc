@@ -30,23 +30,23 @@ TinyPbCodeC::~TinyPbCodeC() {
 //               字符依旧
 void TinyPbCodeC::encode(TcpBuffer* buf, AbstractData* data) {
   if (!buf || !data) {
-    ErrorLog << "encode error! buf or data nullptr";
+    RpcErrorLog << "encode error! buf or data nullptr";
     return;
   }
-  // DebugLog << "test encode start";
+  // RpcDebugLog << "test encode start";
   TinyPbStruct* tmp = dynamic_cast<TinyPbStruct*>(data);
 
   int len = 0;
   const char* re = encodePbData(tmp, len);
   if (re == nullptr || len == 0 || !tmp->encode_succ) {
-    ErrorLog << "encode error";
+    RpcErrorLog << "encode error";
     data->encode_succ = false;
     return;
   }
-  DebugLog << "encode package len = " << len;
+  RpcDebugLog << "encode package len = " << len;
   if (buf != nullptr) {
     buf->writeToBuffer(re, len);
-    DebugLog << "succ encode and write to buffer, writeindex=" << buf->writeIndex();
+    RpcDebugLog << "succ encode and write to buffer, writeindex=" << buf->writeIndex();
   }
   data = tmp;
   // encodePbData()返回的const char *字符串是malloc()堆分配的 
@@ -54,27 +54,27 @@ void TinyPbCodeC::encode(TcpBuffer* buf, AbstractData* data) {
     free((void*)re);
     re = NULL;
   }
-  // DebugLog << "test encode end";
+  // RpcDebugLog << "test encode end";
 
 }
 
 const char* TinyPbCodeC::encodePbData(TinyPbStruct* data, int& len) {
   if (data->service_full_name.empty()) {
-    ErrorLog << "parse error, service_full_name is empty";
+    RpcErrorLog << "parse error, service_full_name is empty";
     data->encode_succ = false;
     return nullptr;
   }
   if (data->msg_req.empty()) {
     data->msg_req = MsgReqUtil::genMsgNumber();
     data->msg_req_len = data->msg_req.length();
-    DebugLog << "generate msgno = " << data->msg_req;
+    RpcDebugLog << "generate msgno = " << data->msg_req;
   }
 
   int32_t pk_len = 2 * sizeof(char) + 6 * sizeof(int32_t)
                     + data->pb_data.length() + data->service_full_name.length()
                     + data->msg_req.length() + data->err_info.length();
   
-  DebugLog << "encode pk_len = " << pk_len;
+  RpcDebugLog << "encode pk_len = " << pk_len;
   char* buf = reinterpret_cast<char*>(malloc(pk_len));
   char* tmp = buf;
   *tmp = PB_START;
@@ -85,7 +85,7 @@ const char* TinyPbCodeC::encodePbData(TinyPbStruct* data, int& len) {
   tmp += sizeof(int32_t);
 
   int32_t msg_req_len = data->msg_req.length();
-  DebugLog << "msg_req_len= " << msg_req_len;
+  RpcDebugLog << "msg_req_len= " << msg_req_len;
   int32_t msg_req_len_net = htonl(msg_req_len);
   memcpy(tmp, &msg_req_len_net, sizeof(int32_t));
   tmp += sizeof(int32_t);
@@ -97,7 +97,7 @@ const char* TinyPbCodeC::encodePbData(TinyPbStruct* data, int& len) {
   }
 
   int32_t service_full_name_len = data->service_full_name.length();
-  DebugLog << "src service_full_name_len = " << service_full_name_len;
+  RpcDebugLog << "src service_full_name_len = " << service_full_name_len;
   int32_t service_full_name_len_net = htonl(service_full_name_len);
   memcpy(tmp, &service_full_name_len_net, sizeof(int32_t));
   tmp += sizeof(int32_t);
@@ -108,13 +108,13 @@ const char* TinyPbCodeC::encodePbData(TinyPbStruct* data, int& len) {
   }
 
   int32_t err_code = data->err_code;
-  DebugLog << "err_code= " << err_code;
+  RpcDebugLog << "err_code= " << err_code;
   int32_t err_code_net = htonl(err_code);
   memcpy(tmp, &err_code_net, sizeof(int32_t));
   tmp += sizeof(int32_t);
 
   int32_t err_info_len = data->err_info.length();
-  DebugLog << "err_info_len= " << err_info_len;
+  RpcDebugLog << "err_info_len= " << err_info_len;
   int32_t err_info_len_net = htonl(err_info_len);
   memcpy(tmp, &err_info_len_net, sizeof(int32_t));
   tmp += sizeof(int32_t);
@@ -126,7 +126,7 @@ const char* TinyPbCodeC::encodePbData(TinyPbStruct* data, int& len) {
 
   memcpy(tmp, &(data->pb_data[0]), data->pb_data.length());
   tmp += data->pb_data.length();
-  DebugLog << "pb_data_len= " << data->pb_data.length();
+  RpcDebugLog << "pb_data_len= " << data->pb_data.length();
 
   // 校验和稳定为1
   int32_t checksum = 1;
@@ -154,7 +154,7 @@ const char* TinyPbCodeC::encodePbData(TinyPbStruct* data, int& len) {
 void TinyPbCodeC::decode(TcpBuffer* buf, AbstractData* data) {
 
   if (!buf || !data) {
-    ErrorLog << "decode error! buf or data nullptr";
+    RpcErrorLog << "decode error! buf or data nullptr";
     return;
   }
 
@@ -172,18 +172,18 @@ void TinyPbCodeC::decode(TcpBuffer* buf, AbstractData* data) {
       // if (i + 1 < buf->writeIndex()) {
       if (i + 1 + 4 < buf->writeIndex()) {
         pk_len = getInt32FromNetByte(&tmp[i+1]);
-        DebugLog << "prase pk_len =" << pk_len;
+        RpcDebugLog << "prase pk_len =" << pk_len;
         int j = i + pk_len - 1;
-        DebugLog << "j =" << j << ", i=" << i;
+        RpcDebugLog << "j =" << j << ", i=" << i;
 
         if (j >= buf->writeIndex()) {
-          // DebugLog << "recv package not complete, or pk_start find error, continue next parse";
+          // RpcDebugLog << "recv package not complete, or pk_start find error, continue next parse";
           continue;
         }
         if (tmp[j] == PB_END) {
           start_index = i;
           end_index = j;
-          // DebugLog << "parse succ, now break";
+          // RpcDebugLog << "parse succ, now break";
           parse_full_pack = true;
           break;
         }
@@ -194,13 +194,13 @@ void TinyPbCodeC::decode(TcpBuffer* buf, AbstractData* data) {
   }
 
   if (!parse_full_pack) {
-    DebugLog << "not parse full package, return";
+    RpcDebugLog << "not parse full package, return";
     return;
   }
 
   buf->recycleRead(end_index + 1 - start_index);
 
-  DebugLog << "m_read_buffer size=" << buf->getBufferVector().size() << "rd=" << buf->readIndex() << "wd=" << buf->writeIndex();
+  RpcDebugLog << "m_read_buffer size=" << buf->getBufferVector().size() << "rd=" << buf->readIndex() << "wd=" << buf->writeIndex();
 
   // 解析TinyPbSruct
   // TinyPbStruct pb_struct;
@@ -210,20 +210,20 @@ void TinyPbCodeC::decode(TcpBuffer* buf, AbstractData* data) {
 
   int msg_req_len_index = start_index + sizeof(char) + sizeof(int32_t);
   if (msg_req_len_index >= end_index) {
-    ErrorLog << "parse error, msg_req_len_index[" << msg_req_len_index << "] >= end_index[" << end_index << "]";
+    RpcErrorLog << "parse error, msg_req_len_index[" << msg_req_len_index << "] >= end_index[" << end_index << "]";
     // drop this error package
     return;
   }
 
   pb_struct->msg_req_len = getInt32FromNetByte(&tmp[msg_req_len_index]);
   if (pb_struct->msg_req_len == 0) {
-    ErrorLog << "prase error, msg_req emptr";
+    RpcErrorLog << "prase error, msg_req emptr";
     return;
   }
 
-  DebugLog << "msg_req_len= " << pb_struct->msg_req_len;
+  RpcDebugLog << "msg_req_len= " << pb_struct->msg_req_len;
   int msg_req_index = msg_req_len_index + sizeof(int32_t);
-  DebugLog << "msg_req_len_index= " << msg_req_index;
+  RpcDebugLog << "msg_req_len_index= " << msg_req_index;
 
   // ???
   // msg_req大小一定会小于50?
@@ -231,36 +231,36 @@ void TinyPbCodeC::decode(TcpBuffer* buf, AbstractData* data) {
 
   memcpy(&msg_req[0], &tmp[msg_req_index], pb_struct->msg_req_len);
   pb_struct->msg_req = std::string(msg_req);
-  DebugLog << "msg_req= " << pb_struct->msg_req;
+  RpcDebugLog << "msg_req= " << pb_struct->msg_req;
   
   int service_name_len_index = msg_req_index + pb_struct->msg_req_len;
   if (service_name_len_index >= end_index) {
-    ErrorLog << "parse error, service_name_len_index[" << service_name_len_index << "] >= end_index[" << end_index << "]";
+    RpcErrorLog << "parse error, service_name_len_index[" << service_name_len_index << "] >= end_index[" << end_index << "]";
     // drop this error package
     return;
   }
 
-  DebugLog << "service_name_len_index = " << service_name_len_index;
+  RpcDebugLog << "service_name_len_index = " << service_name_len_index;
   int service_name_index = service_name_len_index + sizeof(int32_t);
 
   if (service_name_index >= end_index) {
-    ErrorLog << "parse error, service_name_index[" << service_name_index << "] >= end_index[" << end_index << "]";
+    RpcErrorLog << "parse error, service_name_index[" << service_name_index << "] >= end_index[" << end_index << "]";
     return;
   }
 
   pb_struct->service_name_len = getInt32FromNetByte(&tmp[service_name_len_index]);
 
   if (pb_struct->service_name_len > pk_len) {
-    ErrorLog << "parse error, service_name_len[" << pb_struct->service_name_len << "] >= pk_len [" << pk_len << "]";
+    RpcErrorLog << "parse error, service_name_len[" << pb_struct->service_name_len << "] >= pk_len [" << pk_len << "]";
     return;
   }
-  DebugLog << "service_name_len = " << pb_struct->service_name_len;
+  RpcDebugLog << "service_name_len = " << pb_struct->service_name_len;
 
   char service_name[512] = {0};
 
   memcpy(&service_name[0], &tmp[service_name_index], pb_struct->service_name_len);
   pb_struct->service_full_name = std::string(service_name);
-  DebugLog << "service_name = " << pb_struct->service_full_name;
+  RpcDebugLog << "service_name = " << pb_struct->service_full_name;
 
   int err_code_index = service_name_index + pb_struct->service_name_len;
   pb_struct->err_code = getInt32FromNetByte(&tmp[err_code_index]);
@@ -268,12 +268,12 @@ void TinyPbCodeC::decode(TcpBuffer* buf, AbstractData* data) {
   int err_info_len_index = err_code_index + sizeof(int32_t);
 
   if (err_info_len_index >= end_index) {
-    ErrorLog << "parse error, err_info_len_index[" << err_info_len_index << "] >= end_index[" << end_index << "]";
+    RpcErrorLog << "parse error, err_info_len_index[" << err_info_len_index << "] >= end_index[" << end_index << "]";
     // drop this error package
     return;
   }
   pb_struct->err_info_len = getInt32FromNetByte(&tmp[err_info_len_index]);
-  DebugLog << "err_info_len = " << pb_struct->err_info_len;
+  RpcDebugLog << "err_info_len = " << pb_struct->err_info_len;
   int err_info_index = err_info_len_index + sizeof(int32_t);
 
   // ???
@@ -288,18 +288,18 @@ void TinyPbCodeC::decode(TcpBuffer* buf, AbstractData* data) {
                       - 2 * sizeof(char) - 6 * sizeof(int32_t);
 
   int pb_data_index = err_info_index + pb_struct->err_info_len;
-  DebugLog << "pb_data_len= " << pb_data_len << ", pb_index = " << pb_data_index;
+  RpcDebugLog << "pb_data_len= " << pb_data_len << ", pb_index = " << pb_data_index;
 
   if (pb_data_index >= end_index) {
-    ErrorLog << "parse error, pb_data_index[" << pb_data_index << "] >= end_index[" << end_index << "]";
+    RpcErrorLog << "parse error, pb_data_index[" << pb_data_index << "] >= end_index[" << end_index << "]";
     return;
   }
-  // DebugLog << "pb_data_index = " << pb_data_index << ", pb_data.length = " << pb_data_len;
+  // RpcDebugLog << "pb_data_index = " << pb_data_index << ", pb_data.length = " << pb_data_len;
 
   std::string pb_data_str(&tmp[pb_data_index], pb_data_len);
   pb_struct->pb_data = pb_data_str;
 
-  // DebugLog << "decode succ,  pk_len = " << pk_len << ", service_name = " << pb_struct->service_full_name; 
+  // RpcDebugLog << "decode succ,  pk_len = " << pk_len << ", service_name = " << pb_struct->service_full_name; 
 
   pb_struct->decode_succ = true;
   data = pb_struct;
@@ -308,7 +308,7 @@ void TinyPbCodeC::decode(TcpBuffer* buf, AbstractData* data) {
 
 
 ProtocalType TinyPbCodeC::getProtocalType() {
-  return TinyPb_Protocal;
+  return ProtocalType::TinyPb_Protocal;
 }
 
 }
