@@ -4,6 +4,7 @@
 #include "tinyrpc/comm/config.h"
 #include "tinyrpc/net/tcp/tcp_server.h"
 #include "tinyrpc/coroutine/coroutine_hook.h"
+#include "tinyrpc/coroutine/coroutine_pool.h"
 
 // 额外增加的#define
 // 只是为了看到MYSQL的操作
@@ -11,37 +12,34 @@
 
 namespace tinyrpc {
 
+
+extern bool Init_t_msg_req_len(int);
+extern bool Init_m_max_connect_timeout(int);
+
 tinyrpc::Logger::ptr gRpcLogger;
 
-void TinyrpcRunner::RegisterHttpServlet(const std::string &url_path, HttpServlet::ptr servlet) {
-  do { 
-  if(!gRpcServer_->registerHttpServlet(url_path, servlet)) {
-    printf("Start TinyRPC server error, because register http servelt error, \
-      please look up rpc log get more details!\n"); \
-    tinyrpc::Exit(0);
-  }
- } while(0);
+TinyrpcRunner::TinyrpcRunner(const char *configName) : configName_(configName) {
+  InitServiceConfig();
 }
-
-void TinyrpcRunner::RegisterService(std::shared_ptr<google::protobuf::Service> service) {
-  do {
-  if (!gRpcServer_->registerService(service)) {
-    printf("Start TinyRPC server error, because register protobuf service error, \
-      please look up rpc log get more details!\n");
-    tinyrpc::Exit(0);
-  }
- } while(0);
+TinyrpcRunner::TinyrpcRunner(const std::string &configName) : configName_(configName) {
+  InitServiceConfig();
 }
 
 void TinyrpcRunner::InitServiceConfig() {
   InitConfig();
+
+  corPool_ = std::make_shared<CoroutinePool>(
+      gRpcConfig_->m_cor_pool_size, gRpcConfig_->m_cor_stack_size);
+  fdEventPool_ = std::make_shared<FdEventContainer>(1000);
+  couroutine_task_queue_ = std::make_shared<CoroutineTaskQueue>();
+
   InitLogger(gRpcLogger);
   InitServer();
   gRpcLogger->start();
 }
 
 void TinyrpcRunner::StartRpcServer() {
-  gRpcServer_->start();
+  gRpcServer_->start(couroutine_task_queue_);
 }
 
 TcpServer::ptr TinyrpcRunner::GetServer() {
@@ -49,10 +47,6 @@ TcpServer::ptr TinyrpcRunner::GetServer() {
 }
 Config::ptr TinyrpcRunner::GetConfig() {
   return gRpcConfig_;
-}
-
-int TinyrpcRunner::GetIOThreadPoolSize() {
-  return gRpcServer_->getIOThreadPool()->getIOThreadPoolSize();
 }
 
 
@@ -73,6 +67,10 @@ void TinyrpcRunner::InitConfig() {
 
   gRpcConfig_ = std::make_shared<tinyrpc::Config>(configName_.data());
   gRpcConfig_->readConf();
+
+  // 根据config设置两个static变量
+  Init_t_msg_req_len(gRpcConfig_->m_msg_req_len);
+  Init_m_max_connect_timeout(gRpcConfig_->m_max_connect_timeout);
 }
 
 void TinyrpcRunner::InitLogger(std::shared_ptr<Logger> &logger) {
@@ -84,7 +82,7 @@ void TinyrpcRunner::InitLogger(std::shared_ptr<Logger> &logger) {
                     gRpcConfig_->m_log_max_size, gRpcConfig_->m_log_sync_inteval);
 };
 void TinyrpcRunner::InitServer() {
-  gRpcServer_ = std::make_shared<TcpServer>(gRpcConfig_.get());
+  gRpcServer_ = std::make_shared<TcpServer>(gRpcConfig_.get(), corPool_, fdEventPool_);
 }
 
 

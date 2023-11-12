@@ -14,35 +14,65 @@
 
 namespace tinyrpc {
 
-TcpConnection::TcpConnection(tinyrpc::TcpServer* tcp_svr, tinyrpc::IOThread* io_thread, int fd, int buff_size, NetAddress::ptr peer_addr)
-  : m_io_thread(io_thread), m_fd(fd), m_state(Connected), m_connection_type(ConnectionType::ServerConnection), m_peer_addr(peer_addr) {	
+TcpConnection::TcpConnection(tinyrpc::TcpServer* tcp_svr, tinyrpc::IOThread* io_thread, \
+    int fd, int buff_size, NetAddress::ptr peer_addr, \
+    std::weak_ptr<CoroutinePool> corPool, std::weak_ptr<FdEventContainer> fdEventPool) \
+    : m_io_thread(io_thread), m_fd(fd), m_state(Connected), \
+    m_connection_type(ConnectionType::ServerConnection), \
+    m_peer_addr(peer_addr), \
+    weakCorPool_(corPool), \
+    weakFdEventPool_(fdEventPool) {	
+
   m_reactor = m_io_thread->getReactor();
 
   // RpcDebugLog << "m_state=[" << m_state << "], =" << fd;
   m_tcp_svr = tcp_svr;
 
   m_codec = m_tcp_svr->getCodec();
-  m_fd_event = FdEventContainer::GetFdContainer()->getFdEvent(fd);
+
+  std::shared_ptr<tinyrpc::FdEventContainer> sharedFdEventPool = weakFdEventPool_.lock();
+	if (!sharedFdEventPool) [[unlikely]] 
+	{
+		Exit(0);
+	}
+  m_fd_event = sharedFdEventPool->getFdEvent(fd);
   m_fd_event->setReactor(m_reactor);
   initBuffer(buff_size); 
   // IO线程自己在创建的时候已经建立
   //  void* IOThread::main(void* arg) 
   //    Coroutine* Coroutine::GetCurrentCoroutine()
   // 而要完成任务的协程从协程池中获取，这些协程都需要归还
-  m_loop_cor = GetCoroutinePool()->getCoroutineInstanse();
+  std::shared_ptr<tinyrpc::CoroutinePool> sharedCorPool = weakCorPool_.lock();
+	if (!sharedCorPool) [[unlikely]]
+	{
+		Exit(0);
+	}
+  m_loop_cor = sharedCorPool->getCoroutineInstanse();
+
   m_state = Connected;
   RpcDebugLog << "succ create tcp connection[" << m_state << "], fd=" << fd;
 }
 
-TcpConnection::TcpConnection(tinyrpc::TcpClient* tcp_cli, tinyrpc::Reactor* reactor, int fd, int buff_size, NetAddress::ptr peer_addr)
-  : m_fd(fd), m_state(NotConnected), m_connection_type(ConnectionType::ClientConnection), m_peer_addr(peer_addr) {
+TcpConnection::TcpConnection(tinyrpc::TcpClient* tcp_cli, tinyrpc::Reactor* reactor, \
+    int fd, int buff_size, NetAddress::ptr peer_addr, \
+    std::weak_ptr<FdEventContainer> fdEventPool)
+    : m_fd(fd), m_state(NotConnected), \
+    m_connection_type(ConnectionType::ClientConnection), \
+    m_peer_addr(peer_addr), \
+    weakFdEventPool_(fdEventPool) {
+
   m_reactor = reactor;
 
   m_tcp_cli = tcp_cli;
 
   m_codec = m_tcp_cli->getCodeC();
 
-  m_fd_event = FdEventContainer::GetFdContainer()->getFdEvent(fd);
+  std::shared_ptr<tinyrpc::FdEventContainer> sharedFdEventPool = weakFdEventPool_.lock();
+	if (!sharedFdEventPool) [[unlikely]] 
+	{
+		Exit(0);
+	}
+  m_fd_event = sharedFdEventPool->getFdEvent(fd);
   m_fd_event->setReactor(m_reactor);
   initBuffer(buff_size); 
 
@@ -81,7 +111,12 @@ void TcpConnection::setUpClient() {
 // 也就是TcpConnection结束，才释放coroutine
 TcpConnection::~TcpConnection() {
   if (m_connection_type == ConnectionType::ServerConnection) {
-    GetCoroutinePool()->returnCoroutine(m_loop_cor);
+    std::shared_ptr<tinyrpc::CoroutinePool> sharedCorPool = weakCorPool_.lock();
+    if (!sharedCorPool) [[unlikely]]
+    {
+      Exit(0);
+    }
+    sharedCorPool->returnCoroutine(m_loop_cor);
   }
 
   RpcDebugLog << "~TcpConnection, fd=" << m_fd;
@@ -129,7 +164,12 @@ void TcpConnection::input() {
     int write_index = m_read_buffer->writeIndex();
 
     RpcDebugLog << "m_read_buffer size=" << m_read_buffer->getBufferVector().size() << "rd=" << m_read_buffer->readIndex() << "wd=" << m_read_buffer->writeIndex();
-    int rt = read_hook(m_fd, &(m_read_buffer->m_buffer[write_index]), read_count);
+    std::shared_ptr<tinyrpc::FdEventContainer> fdEventPool = weakFdEventPool_.lock();
+    if (!fdEventPool) [[unlikely]]
+    {
+      Exit(0);
+    }
+    int rt = read_hook(fdEventPool->getFdEvent(m_fd), &(m_read_buffer->m_buffer[write_index]), read_count);
     if (rt > 0) {
       m_read_buffer->recycleWrite(rt);
     }
@@ -249,7 +289,12 @@ void TcpConnection::output() {
     
     int total_size = m_write_buffer->readAble();
     int read_index = m_write_buffer->readIndex();
-    int rt = write_hook(m_fd, &(m_write_buffer->m_buffer[read_index]), total_size);
+    std::shared_ptr<tinyrpc::FdEventContainer> fdEventPool = weakFdEventPool_.lock();
+    if (!fdEventPool) [[unlikely]]
+    {
+      Exit(0);
+    }
+    int rt = write_hook(fdEventPool->getFdEvent(m_fd), &(m_write_buffer->m_buffer[read_index]), total_size);
     // RpcInfoLog << "write end";
     if (rt <= 0) {
       RpcErrorLog << "write empty, error=" << strerror(errno);

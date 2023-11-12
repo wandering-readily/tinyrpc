@@ -23,7 +23,7 @@ class TcpAcceptor {
  public:
 
   typedef std::shared_ptr<TcpAcceptor> ptr;
-  TcpAcceptor(NetAddress::ptr net_addr);
+  TcpAcceptor(NetAddress::ptr, std::weak_ptr<FdEventContainer>);
 
   void init();
 
@@ -46,6 +46,8 @@ class TcpAcceptor {
   NetAddress::ptr m_local_addr {nullptr};
   NetAddress::ptr m_peer_addr {nullptr};
 
+  std::weak_ptr<FdEventContainer> weakFdEventPool_;
+
 };
 
 
@@ -56,11 +58,13 @@ class TcpServer {
   typedef std::shared_ptr<TcpServer> ptr;
 
 	// TcpServer(NetAddress::ptr addr, ProtocalType type = TinyPb_Protocal);
-	TcpServer(Config *config);
+	TcpServer(Config *config, \
+    std::weak_ptr<CoroutinePool>, \
+    std::weak_ptr<FdEventContainer>);
 
   ~TcpServer();
 
-  void start();
+  void start(std::weak_ptr<CoroutineTaskQueue>);
 
   void addCoroutine(tinyrpc::Coroutine::ptr cor);
 
@@ -119,6 +123,10 @@ class TcpServer {
   std::map<int, std::shared_ptr<TcpConnection>> m_clients;
 
   TimerEvent::ptr m_clear_clent_timer_event {nullptr};
+
+  std::weak_ptr<CoroutinePool> weakCorPool_;
+
+  std::weak_ptr<FdEventContainer> weakFdEventPool_;
 
 };
 

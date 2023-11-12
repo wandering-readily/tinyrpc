@@ -4,10 +4,6 @@
 
 namespace tinyrpc {
 
-// ???
-static FdEventContainer* g_FdContainer = nullptr;
-static pthread_once_t once_gFdContainer = PTHREAD_ONCE_INIT;
-
 FdEvent::FdEvent(tinyrpc::Reactor* reactor, int fd/*=-1*/) : m_fd(fd), m_reactor(reactor) {
     if (reactor == nullptr) {
       RpcErrorLog << "create reactor first";
@@ -174,9 +170,6 @@ Coroutine* FdEvent::getCoroutine() {
 
 
 
-void allocateFdContainer() {
-  g_FdContainer = new FdEventContainer(1000); 
-}
 
 FdEvent::ptr FdEventContainer::getFdEvent(int fd) {
   
@@ -206,14 +199,6 @@ FdEventContainer::FdEventContainer(int size) {
   for(int i = 0; i < size; ++i) {
     m_fds.push_back(std::make_shared<FdEvent>(i));
   }
-
-}
-
-FdEventContainer* FdEventContainer::GetFdContainer() {
-  if (g_FdContainer == nullptr) {
-    pthread_once(&once_gFdContainer, allocateFdContainer);
-  }
-  return g_FdContainer;
 }
 
 

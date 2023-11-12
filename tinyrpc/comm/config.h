@@ -55,17 +55,13 @@ private:
   LogLevel m_app_log_level {LogLevel::DEBUG};
   int m_log_sync_inteval {500};
 
-  // 将m_cor_stack_size, 
-  //    m_cor_pool_size, 
-  //    m_msg_req_len, 
-  //    m_max_connect_timeout移出config, 作为唯一初始化数字
   // coroutine params
-  // int m_cor_stack_size {0};
-  // int m_cor_pool_size {0};
+  int m_cor_stack_size {0};
+  int m_cor_pool_size {0};
 
-  // int m_msg_req_len {0};
+  int m_msg_req_len {0};
 
-  // int m_max_connect_timeout {0};    // ms
+  int m_max_connect_timeout {0};    // ms
   int m_iothread_num {0};
 
   int m_timewheel_bucket_num {0};

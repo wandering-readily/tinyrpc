@@ -11,6 +11,7 @@
 #include "timer.h"
 #include "tinyrpc/coroutine/coroutine.h"
 #include "tinyrpc/coroutine/coroutine_hook.h"
+#include "tinyrpc/net/tcp/io_thread.h"
 
 
 extern read_fun_ptr_t g_sys_read_fun;  // sys read func
@@ -23,7 +24,6 @@ static thread_local Reactor* t_reactor_ptr = nullptr;
 
 static thread_local int t_max_epoll_timeout = 10000;     // ms
 
-static CoroutineTaskQueue* t_couroutine_task_queue = nullptr;
 
 
 Reactor::Reactor() {
@@ -267,7 +267,13 @@ void Reactor::loop() {
       FdEvent* ptr = NULL;
       // ptr->setReactor(NULL);
       while(1) {
-        ptr = CoroutineTaskQueue::GetCoroutineTaskQueue()->pop();
+        std::shared_ptr<tinyrpc::CoroutineTaskQueue> corTaskQueue = \
+          IOThread::GetCurrentIOThread()->getweakCorTaskQueue().lock();
+        if (!corTaskQueue) [[unlikely]] 
+        {
+          Exit(0);
+        }
+        ptr = corTaskQueue->pop();
         if (ptr) {
           // reactor和IOThread绑定
           // 事件取出时, 要绑定与之相关的IOThread和协程
@@ -395,7 +401,14 @@ void Reactor::loop() {
                   // 每个线程的reactor会在自己的reactor的Loop()中
                   //    ptr = CoroutineTaskQueue::GetCoroutineTaskQueue()->pop(); 
                   //    取出事件切换到协程内容执行，并等待返回
-                  CoroutineTaskQueue::GetCoroutineTaskQueue()->push(ptr);
+
+                  std::shared_ptr<tinyrpc::CoroutineTaskQueue> corTaskQueue = \
+                  IOThread::GetCurrentIOThread()->getweakCorTaskQueue().lock();
+                  if (!corTaskQueue) [[unlikely]] 
+                  {
+                    Exit(0);
+                  }                  
+                  corTaskQueue->push(ptr);
                 } else {
                   // main reactor, just resume this coroutine. it is accept coroutine. and Main Reactor only have this coroutine
                   // 这是TcpServer的专用协程acceptCoroutine切换
@@ -567,20 +580,6 @@ void Reactor::setReactorType(ReactorType type) {
  * 因此增加pthread_once()函数在多线程环境中只创建一次
  */
 
-static pthread_once_t once_CoroutineTaskQueue = PTHREAD_ONCE_INIT;
-void allocateOneCoroutineTaskQueue() {
-  t_couroutine_task_queue = new CoroutineTaskQueue();
-}
-
-
-CoroutineTaskQueue* CoroutineTaskQueue::GetCoroutineTaskQueue() {
-  if (!t_couroutine_task_queue) {
-    // t_couroutine_task_queue = new CoroutineTaskQueue();
-    pthread_once(&once_CoroutineTaskQueue, allocateOneCoroutineTaskQueue);
-  }
-  return t_couroutine_task_queue;
-
-}
 
 void CoroutineTaskQueue::push(FdEvent* cor) {
   Mutex::Lock lock(m_mutex);

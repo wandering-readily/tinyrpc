@@ -29,11 +29,6 @@ namespace details {
 
 namespace tinyrpc {
 
-extern bool Init_t_msg_req_len(int);
-extern bool Init_m_max_connect_timeout(int);
-extern bool Init_m_cor_pool_size(int);
-extern bool Init_m_cor_stack_size(int);
-
 
 Config::Config(const char* file_path) : m_file_path(std::string(file_path)) {
   m_xml_file = new TiXmlDocument();
@@ -176,23 +171,19 @@ void Config::readConf() {
   printNodeAndGetTextErrorIfExist(coroutine_pool_size_node, 
                     "coroutine.coroutine_pool_size");
   int cor_stack_size = std::atoi(coroutine_stack_size_node->GetText());
-  int m_cor_stack_size = 1024 * cor_stack_size;
-  int m_cor_pool_size = std::atoi(coroutine_pool_size_node->GetText());
-  Init_m_cor_pool_size(m_cor_pool_size);
-  Init_m_cor_stack_size(m_cor_stack_size);
+  m_cor_stack_size = 1024 * cor_stack_size;
+  m_cor_pool_size = std::atoi(coroutine_pool_size_node->GetText());
 
   TiXmlElement *msg_req_len_node = 
       root->FirstChildElement("msg_req_len");
   printNodeAndGetTextErrorIfExist(msg_req_len_node, "msg_req_len");
-  int m_msg_req_len = std::atoi(msg_req_len_node->GetText());
-  Init_t_msg_req_len(m_msg_req_len);
+  m_msg_req_len = std::atoi(msg_req_len_node->GetText());
 
   TiXmlElement *max_connect_timeout_node = 
       root->FirstChildElement("max_connect_timeout");
   printNodeAndGetTextErrorIfExist(max_connect_timeout_node, "max_connect_timeout");
   int max_connect_timeout = std::atoi(max_connect_timeout_node->GetText());
-  int m_max_connect_timeout = max_connect_timeout * 1000;
-  Init_m_max_connect_timeout(m_max_connect_timeout);
+  m_max_connect_timeout = max_connect_timeout * 1000;
 
 
   TiXmlElement *iothread_num_node = 

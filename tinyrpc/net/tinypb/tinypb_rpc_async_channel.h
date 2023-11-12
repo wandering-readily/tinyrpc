@@ -20,7 +20,7 @@ class TinyPbRpcAsyncChannel : public google::protobuf::RpcChannel , public std::
   typedef std::shared_ptr<google::protobuf::Message> msg_ptr;
   typedef std::shared_ptr<google::protobuf::Closure> clo_ptr;
 
-  TinyPbRpcAsyncChannel(NetAddress::ptr addr);
+  TinyPbRpcAsyncChannel(NetAddress::ptr);
   ~TinyPbRpcAsyncChannel();
 
   void CallMethod(const google::protobuf::MethodDescriptor* method, 
@@ -34,7 +34,8 @@ class TinyPbRpcAsyncChannel : public google::protobuf::RpcChannel , public std::
 
   // must call saveCallee before CallMethod
   // in order to save shared_ptr count of req res controller
-  void saveCallee(con_ptr controller, msg_ptr req, msg_ptr res, clo_ptr closure);
+  void saveCallee(con_ptr controller, msg_ptr req, msg_ptr res, clo_ptr closure, \
+    std::weak_ptr<CoroutinePool>);
 
   void wait();
 
@@ -69,6 +70,8 @@ class TinyPbRpcAsyncChannel : public google::protobuf::RpcChannel , public std::
   msg_ptr m_req;
   msg_ptr m_res;
   clo_ptr m_closure;
+
+  std::weak_ptr<CoroutinePool> weakCorPool_;
 
 };
 

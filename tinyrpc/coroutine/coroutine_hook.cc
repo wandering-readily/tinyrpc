@@ -79,10 +79,11 @@ void toEpoll(tinyrpc::FdEvent::ptr fd_event, int events) {
 	// fd_event->updateToReactor();
 }
 
-ssize_t read_hook(int fd, void *buf, size_t count) {
+ssize_t read_hook(tinyrpc::FdEvent::ptr fd_event, void *buf, size_t count) {
 	RpcDebugLog << "this is hook read";
   // 主协程直接调用系统函数
   // 否则要在reactor上监听
+  int fd = fd_event->getFd();
   if (tinyrpc::Coroutine::IsMainCoroutine()) {
     RpcDebugLog << "hook disable, call sys read func";
     return g_sys_read_fun(fd, buf, count);
@@ -91,7 +92,6 @@ ssize_t read_hook(int fd, void *buf, size_t count) {
 	tinyrpc::Reactor::GetReactor();
 	// assert(reactor != nullptr);
 
-  tinyrpc::FdEvent::ptr fd_event = tinyrpc::FdEventContainer::GetFdContainer()->getFdEvent(fd);
   if(fd_event->getReactor() == nullptr) {
     fd_event->setReactor(tinyrpc::Reactor::GetReactor());  
   }
@@ -132,8 +132,9 @@ ssize_t read_hook(int fd, void *buf, size_t count) {
 }
 
 // server主线程调用的accept_hook
-int accept_hook(int sockfd, struct sockaddr *addr, socklen_t *addrlen) {
+int accept_hook(tinyrpc::FdEvent::ptr fd_event, struct sockaddr *addr, socklen_t *addrlen) {
 	RpcDebugLog << "this is hook accept";
+  int sockfd = fd_event->getFd();
   if (tinyrpc::Coroutine::IsMainCoroutine()) {
     RpcDebugLog << "hook disable, call sys accept func";
     return g_sys_accept_fun(sockfd, addr, addrlen);
@@ -141,7 +142,6 @@ int accept_hook(int sockfd, struct sockaddr *addr, socklen_t *addrlen) {
 	tinyrpc::Reactor::GetReactor();
 	// assert(reactor != nullptr);
 
-  tinyrpc::FdEvent::ptr fd_event = tinyrpc::FdEventContainer::GetFdContainer()->getFdEvent(sockfd);
   if(fd_event->getReactor() == nullptr) {
     fd_event->setReactor(tinyrpc::Reactor::GetReactor());  
   }
@@ -174,8 +174,9 @@ int accept_hook(int sockfd, struct sockaddr *addr, socklen_t *addrlen) {
 
 }
 
-ssize_t write_hook(int fd, const void *buf, size_t count) {
+ssize_t write_hook(tinyrpc::FdEvent::ptr fd_event, const void *buf, size_t count) {
 	RpcDebugLog << "this is hook write";
+  int fd = fd_event->getFd();
   if (tinyrpc::Coroutine::IsMainCoroutine()) {
     RpcDebugLog << "hook disable, call sys write func";
     return g_sys_write_fun(fd, buf, count);
@@ -183,7 +184,6 @@ ssize_t write_hook(int fd, const void *buf, size_t count) {
 	tinyrpc::Reactor::GetReactor();
 	// assert(reactor != nullptr);
 
-  tinyrpc::FdEvent::ptr fd_event = tinyrpc::FdEventContainer::GetFdContainer()->getFdEvent(fd);
   if(fd_event->getReactor() == nullptr) {
     fd_event->setReactor(tinyrpc::Reactor::GetReactor());  
   }
@@ -217,8 +217,9 @@ ssize_t write_hook(int fd, const void *buf, size_t count) {
 }
 
 // client调用, 那么tinyrpc::Coroutine::IsMainCoroutine()==true, 即不进入协程圈
-int connect_hook(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
+int connect_hook(tinyrpc::FdEvent::ptr fd_event, const struct sockaddr *addr, socklen_t addrlen) {
 	RpcDebugLog << "this is hook connect";
+  int sockfd = fd_event->getFd();
   if (tinyrpc::Coroutine::IsMainCoroutine()) {
     RpcDebugLog << "hook disable, call sys connect func";
     return g_sys_connect_fun(sockfd, addr, addrlen);
@@ -226,7 +227,6 @@ int connect_hook(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
 	tinyrpc::Reactor* reactor = tinyrpc::Reactor::GetReactor();
 	// assert(reactor != nullptr);
 
-  tinyrpc::FdEvent::ptr fd_event = tinyrpc::FdEventContainer::GetFdContainer()->getFdEvent(sockfd);
   if(fd_event->getReactor() == nullptr) {
     fd_event->setReactor(reactor);  
   }
@@ -332,48 +332,48 @@ unsigned int sleep_hook(unsigned int seconds) {
 }
 
 
-extern "C" {
+// extern "C" {
 
 
-// 如果设置了钩子，那么使用accept_hook，否则使用g_sys_fun=>从共享库中调用系统函数
-int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen) {
-	if (!tinyrpc::g_hook) {
-		return g_sys_accept_fun(sockfd, addr, addrlen);
-	} else {
-		return tinyrpc::accept_hook(sockfd, addr, addrlen);
-	}
-}
+// // 如果设置了钩子，那么使用accept_hook，否则使用g_sys_fun=>从共享库中调用系统函数
+// int accept(tinyrpc::FdEvent::ptr fd_event, struct sockaddr *addr, socklen_t *addrlen) {
+	// if (!tinyrpc::g_hook) {
+		// return g_sys_accept_fun(fd_event->getFd(), addr, addrlen);
+	// } else {
+		// return tinyrpc::accept_hook(fd_event, addr, addrlen);
+	// }
+// }
 
-ssize_t read(int fd, void *buf, size_t count) {
-	if (!tinyrpc::g_hook) {
-		return g_sys_read_fun(fd, buf, count);
-	} else {
-		return tinyrpc::read_hook(fd, buf, count);
-	}
-}
+// ssize_t read(tinyrpc::FdEvent::ptr fd_event, void *buf, size_t count) {
+	// if (!tinyrpc::g_hook) {
+		// return g_sys_read_fun(fd_event->getFd(), buf, count);
+	// } else {
+		// return tinyrpc::read_hook(fd_event, buf, count);
+	// }
+// }
 
-ssize_t write(int fd, const void *buf, size_t count) {
-	if (!tinyrpc::g_hook) {
-		return g_sys_write_fun(fd, buf, count);
-	} else {
-		return tinyrpc::write_hook(fd, buf, count);
-	}
-}
+// ssize_t write(tinyrpc::FdEvent::ptr fd_event, const void *buf, size_t count) {
+	// if (!tinyrpc::g_hook) {
+		// return g_sys_write_fun(fd_event->getFd(), buf, count);
+	// } else {
+		// return tinyrpc::write_hook(fd_event, buf, count);
+	// }
+// }
 
-int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
-	if (!tinyrpc::g_hook) {
-		return g_sys_connect_fun(sockfd, addr, addrlen);
-	} else {
-		return tinyrpc::connect_hook(sockfd, addr, addrlen);
-	}
-}
+// int connect(tinyrpc::FdEvent::ptr fd_event, const struct sockaddr *addr, socklen_t addrlen) {
+	// if (!tinyrpc::g_hook) {
+		// return g_sys_connect_fun(fd_event->getFd(), addr, addrlen);
+	// } else {
+		// return tinyrpc::connect_hook(fd_event, addr, addrlen);
+	// }
+// }
 
-unsigned int sleep(unsigned int seconds) {
-	if (!tinyrpc::g_hook) {
-		return g_sys_sleep_fun(seconds);
-	} else {
-		return tinyrpc::sleep_hook(seconds);
-	}
-}
+// unsigned int sleep(unsigned int seconds) {
+	// if (!tinyrpc::g_hook) {
+		// return g_sys_sleep_fun(seconds);
+	// } else {
+		// return tinyrpc::sleep_hook(seconds);
+	// }
+// }
 
-}
+// }

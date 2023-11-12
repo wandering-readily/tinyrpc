@@ -32,7 +32,15 @@ class BlockCallHttpServlet : public tinyrpc::HttpServlet {
     queryAgeReq rpc_req;
     queryAgeRes rpc_res;
     AppDebugLog ("now to call QueryServer TinyRPC server to query who's id is %s", req->m_query_maps["id"].c_str());
-    rpc_req.set_id(std::atoi(req->m_query_maps["id"].c_str()));
+    {
+      auto &requery_map = req->m_query_maps;
+      if (requery_map.find("req_no") != requery_map.end()) {
+        rpc_req.set_req_no(std::atoi(req->m_query_maps["req_no"].c_str()));
+      }
+      if (requery_map.find("id") != requery_map.end()) {
+        rpc_req.set_id(std::atoi(req->m_query_maps["id"].c_str()));
+      }
+    }
 
     tinyrpc::TinyPbRpcChannel channel(addr);
     QueryService_Stub stub(&channel);
@@ -62,7 +70,7 @@ class BlockCallHttpServlet : public tinyrpc::HttpServlet {
     }
 
     std::stringstream ss;
-    ss << "Success!! Your age is," << rpc_res.age() << " and Your id is " << rpc_res.id();
+    ss << "Success!! Your age is " << rpc_res.age() << " and Your id is " << rpc_res.id();
 
     char buf[512];
     sprintf(buf, html, ss.str().c_str());
@@ -76,9 +84,9 @@ class BlockCallHttpServlet : public tinyrpc::HttpServlet {
 
 };
 
-class NonBlockCallHttpServlet: public tinyrpc::HttpServlet {
+class NonBlockCallHttpServlet: public tinyrpc::AsyncHttpServlet{
  public:
-  NonBlockCallHttpServlet() = default;
+  NonBlockCallHttpServlet(std::weak_ptr<tinyrpc::CoroutinePool> corPool) : AsyncHttpServlet(corPool){}
   ~NonBlockCallHttpServlet() = default;
 
   void handle(tinyrpc::HttpRequest* req, tinyrpc::HttpResponse* res) {
@@ -91,6 +99,15 @@ class NonBlockCallHttpServlet: public tinyrpc::HttpServlet {
     std::shared_ptr<queryAgeRes> rpc_res = std::make_shared<queryAgeRes>();
     AppDebugLog("now to call QueryServer TinyRPC server to query who's id is %s", req->m_query_maps["id"].c_str());
     rpc_req->set_id(std::atoi(req->m_query_maps["id"].c_str()));
+    {
+      auto &requery_map = req->m_query_maps;
+      if (requery_map.find("req_no") != requery_map.end()) {
+        rpc_req->set_req_no(std::atoi(req->m_query_maps["req_no"].c_str()));
+      }
+      if (requery_map.find("id") != requery_map.end()) {
+        rpc_req->set_id(std::atoi(req->m_query_maps["id"].c_str()));
+      }
+    }
 
     std::shared_ptr<tinyrpc::TinyPbRpcController> rpc_controller = std::make_shared<tinyrpc::TinyPbRpcController>();
     rpc_controller->SetTimeout(10000);
@@ -107,7 +124,7 @@ class NonBlockCallHttpServlet: public tinyrpc::HttpServlet {
     };
 
     std::shared_ptr<tinyrpc::TinyPbRpcClosure> closure = std::make_shared<tinyrpc::TinyPbRpcClosure>(cb); 
-    async_channel->saveCallee(rpc_controller, rpc_req, rpc_res, closure);
+    async_channel->saveCallee(rpc_controller, rpc_req, rpc_res, closure, getWeakPointoroutinePool());
 
     QueryService_Stub stub(async_channel.get());
 
@@ -135,7 +152,7 @@ class NonBlockCallHttpServlet: public tinyrpc::HttpServlet {
     }
 
     std::stringstream ss;
-    ss << "Success!! Your age is," << rpc_res->age() << " and Your id is " << rpc_res->id();
+    ss << "Success!! Your age is " << rpc_res->age() << " and Your id is " << rpc_res->id();
 
     char buf[512];
     sprintf(buf, html, ss.str().c_str());
@@ -182,10 +199,9 @@ int main(int argc, char* argv[]) {
   }
 
   tinyrpc::TinyrpcRunner runner(argv[1]);
-  runner.InitServiceConfig();
-  runner.RegisterHttpServlet("/qps", std::make_shared<QPSHttpServlet>());
-  runner.RegisterHttpServlet("/block", std::make_shared<BlockCallHttpServlet>());
-  runner.RegisterHttpServlet("/nonblock", std::make_shared<NonBlockCallHttpServlet>());
+  runner.RegisterHttpServlet<QPSHttpServlet>("/qps");
+  runner.RegisterHttpServlet<BlockCallHttpServlet>("/block");
+  runner.RegisterHttpServlet<NonBlockCallHttpServlet>("/nonblock");
   runner.StartRpcServer();
 
   return 0;

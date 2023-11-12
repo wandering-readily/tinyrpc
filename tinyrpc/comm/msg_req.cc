@@ -74,7 +74,7 @@ std::string MsgReqUtil::genMsgNumber() {
       pthread_once(&once_msgReq, createRandomFd);
     } 
     std::string res(t_msg_req_len, 0);
-    if ((read(g_random_fd, &res[0], t_msg_req_len)) != t_msg_req_len) {
+    if ((::read(g_random_fd, &res[0], t_msg_req_len)) != t_msg_req_len) {
       RpcErrorLog << "read /dev/urandom data less " << t_msg_req_len << " bytes";
       return "";
     }

@@ -101,7 +101,6 @@ class FdEventContainer {
   FdEvent::ptr getFdEvent(int fd); 
 
  public:
-  static FdEventContainer* GetFdContainer();
 
  private:
   // 用哈希表是不是性能更好?

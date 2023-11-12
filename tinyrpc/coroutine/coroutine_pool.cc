@@ -9,38 +9,10 @@
 
 namespace tinyrpc {
 
-static std::atomic_int m_cor_pool_size = 1000, m_cor_stack_size = 256;
-static std::atomic_bool m_cor_pool_size_inited = false, m_cor_stack_size_inited = false;
-bool Init_m_cor_pool_size(int cor_pool_size) {
-  if (!m_cor_pool_size_inited) {
-    m_cor_pool_size = cor_pool_size;
-    m_cor_pool_size_inited = true;
-    return true;
-  }
-  return false;
-}
-bool Init_m_cor_stack_size(int cor_stack_size) {
-  if (!m_cor_stack_size_inited) {
-    m_cor_stack_size = cor_stack_size;
-    m_cor_stack_size_inited = true;
-    return true;
-  }
-  return false;
-}
-
-// ???
-// 因为在主线程中创建，那么就只有一个协程POOL
-static CoroutinePool* t_coroutine_container_ptr = nullptr; 
-
-CoroutinePool* GetCoroutinePool() {
-  if (!t_coroutine_container_ptr) {
-    t_coroutine_container_ptr = new CoroutinePool(m_cor_pool_size, m_cor_stack_size);
-  }
-  return t_coroutine_container_ptr;
-}
 
 
-CoroutinePool::CoroutinePool(int pool_size, int stack_size /*= 1024 * 128 B*/) : m_pool_size(pool_size), m_stack_size(stack_size) {
+CoroutinePool::CoroutinePool(int pool_size, int stack_size /*= 1024 * 128 B*/) \
+    : m_pool_size(pool_size), m_stack_size(stack_size) {
   // set main coroutine first
   // 先设主协程
   Coroutine::GetCurrentCoroutine();

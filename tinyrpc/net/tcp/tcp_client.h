@@ -20,11 +20,10 @@ class TcpClient {
  public:
   typedef std::shared_ptr<TcpClient> ptr;
 
-  TcpClient(NetAddress::ptr addr, ProtocalType type = tinyrpc::ProtocalType::TinyPb_Protocal);
+  TcpClient(NetAddress::ptr addr, \
+    ProtocalType type = tinyrpc::ProtocalType::TinyPb_Protocal);
 
   ~TcpClient();
-
-  void init();
 
   void resetFd();
 
@@ -76,6 +75,8 @@ class TcpClient {
   AbstractCodeC::ptr m_codec {nullptr};
 
   bool m_connect_succ {false};
+  
+  std::shared_ptr<FdEventContainer> fdEventPool_;
 
 }; 
 

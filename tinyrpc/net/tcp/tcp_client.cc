@@ -14,7 +14,8 @@
 
 namespace tinyrpc {
 
-TcpClient::TcpClient(NetAddress::ptr addr, ProtocalType type /*= TinyPb_Protocal*/) : m_peer_addr(addr) {
+TcpClient::TcpClient(NetAddress::ptr addr, ProtocalType type) \
+    : m_peer_addr(addr), fdEventPool_(std::make_shared<FdEventContainer>(1000)) {
 
   m_family = m_peer_addr->getFamily();
   m_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -32,13 +33,14 @@ TcpClient::TcpClient(NetAddress::ptr addr, ProtocalType type /*= TinyPb_Protocal
 	}
 
   // 根据本地FD，创建连接
-  m_connection = std::make_shared<TcpConnection>(this, m_reactor, m_fd, 128, m_peer_addr);
+  m_connection = std::make_shared<TcpConnection>(this, m_reactor, \
+    m_fd, 128, m_peer_addr, fdEventPool_);
 
 }
 
 TcpClient::~TcpClient() {
   if (m_fd > 0) {
-    FdEventContainer::GetFdContainer()->getFdEvent(m_fd)->unregisterFromReactor(); 
+    fdEventPool_->getFdEvent(m_fd)->unregisterFromReactor(); 
     close(m_fd);
     RpcDebugLog << "~TcpClient() close fd = " << m_fd;
   }
@@ -46,12 +48,13 @@ TcpClient::~TcpClient() {
 
 TcpConnection* TcpClient::getConnection() {
   if (!m_connection.get()) {
-    m_connection = std::make_shared<TcpConnection>(this, m_reactor, m_fd, 128, m_peer_addr);
+    m_connection = std::make_shared<TcpConnection>(this, m_reactor, \
+      m_fd, 128, m_peer_addr, fdEventPool_);
   }
   return m_connection.get();
 }
 void TcpClient::resetFd() {
-  tinyrpc::FdEvent::ptr fd_event = tinyrpc::FdEventContainer::GetFdContainer()->getFdEvent(m_fd);
+  tinyrpc::FdEvent::ptr fd_event = fdEventPool_->getFdEvent(m_fd);
   fd_event->unregisterFromReactor();
   close(m_fd);
   m_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -89,7 +92,8 @@ int TcpClient::sendAndRecvTinyPb(const std::string& msg_no, TinyPbStruct::pb_ptr
     RpcDebugLog << "begin to connect";
     if (m_connection->getState() != Connected) {
       // client connect连接服务器
-      int rt = connect_hook(m_fd, reinterpret_cast<sockaddr*>(m_peer_addr->getSockAddr()), m_peer_addr->getSockLen());
+      int rt = connect_hook(fdEventPool_->getFdEvent(m_fd), \
+        reinterpret_cast<sockaddr*>(m_peer_addr->getSockAddr()), m_peer_addr->getSockLen());
       if (rt == 0) {
         RpcDebugLog << "connect [" << m_peer_addr->toString() << "] succ!";
         // 设置已连接
@@ -173,7 +177,7 @@ int TcpClient::sendAndRecvTinyPb(const std::string& msg_no, TinyPbStruct::pb_ptr
 
 err_deal:
   // connect error should close fd and reopen new one
-  FdEventContainer::GetFdContainer()->getFdEvent(m_fd)->unregisterFromReactor();
+  fdEventPool_->getFdEvent(m_fd)->unregisterFromReactor();
   close(m_fd);
   m_fd = socket(AF_INET, SOCK_STREAM, 0);
   std::stringstream ss;

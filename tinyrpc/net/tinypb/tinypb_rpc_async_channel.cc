@@ -32,7 +32,12 @@ TinyPbRpcAsyncChannel::TinyPbRpcAsyncChannel(NetAddress::ptr addr) {
 TinyPbRpcAsyncChannel::~TinyPbRpcAsyncChannel() {
   // RpcDebugLog << "~TinyPbRpcAsyncChannel(), return coroutine";
   if (m_pending_cor) {
-    GetCoroutinePool()->returnCoroutine(m_pending_cor);
+    std::shared_ptr<tinyrpc::CoroutinePool> corPool = weakCorPool_.lock();
+    if (!corPool) [[unlikely]]
+    {
+      Exit(0);
+    }
+    corPool->returnCoroutine(m_pending_cor);
   }
 }
 
@@ -40,12 +45,14 @@ TinyPbRpcChannel* TinyPbRpcAsyncChannel::getRpcChannel() {
   return m_rpc_channel.get();
 }
 
-void TinyPbRpcAsyncChannel::saveCallee(con_ptr controller, msg_ptr req, msg_ptr res, clo_ptr closure) {
+void TinyPbRpcAsyncChannel::saveCallee(con_ptr controller, \
+    msg_ptr req, msg_ptr res, clo_ptr closure, std::weak_ptr<CoroutinePool> corPool) {
   m_controller = controller;
   m_req = req;
   m_res = res;
   m_closure = closure;
   m_is_pre_set = true;
+  weakCorPool_ = corPool;
 }
 
 void TinyPbRpcAsyncChannel::CallMethod(const google::protobuf::MethodDescriptor* method, 
@@ -109,7 +116,12 @@ void TinyPbRpcAsyncChannel::CallMethod(const google::protobuf::MethodDescriptor*
 
   // !!!
   // 还要添加代码, reacotr
-  m_pending_cor = GetCoroutinePool()->getCoroutineInstanse();
+  std::shared_ptr<tinyrpc::CoroutinePool> corPool = weakCorPool_.lock();
+	if (!corPool) [[unlikely]]
+	{
+		Exit(0);
+	}
+  m_pending_cor = corPool->getCoroutineInstanse();
   m_pending_cor->setCallBack(cb);
   m_current_iothread->getReactor()->addCoroutine(m_pending_cor, true);
 

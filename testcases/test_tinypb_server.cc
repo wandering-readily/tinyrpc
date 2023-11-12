@@ -80,8 +80,7 @@ int main(int argc, char* argv[]) {
   }
 
   tinyrpc::TinyrpcRunner runner(argv[1]);
-  runner.InitServiceConfig();
-  runner.RegisterService(std::make_shared<QueryServiceImpl>());
+  runner.RegisterService<QueryServiceImpl>();
   runner.StartRpcServer();
 
   return 0;

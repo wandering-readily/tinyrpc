@@ -12,13 +12,13 @@
 
 namespace tinyrpc {
 
+class CoroutinePool;
 
-class TinyrpcRunner {
+class TinyrpcRunner final {
 
 public:
-  TinyrpcRunner(const char *configName) : configName_(configName) {}
-  TinyrpcRunner(const std::string &configName) : configName_(configName) {}
-  TinyrpcRunner(std::string &&configName) : configName_(std::move(configName)) {}
+  TinyrpcRunner(const char *);
+  TinyrpcRunner(const std::string &);
 
   ~TinyrpcRunner()=default;
 
@@ -28,29 +28,64 @@ public:
   TinyrpcRunner &operator=(TinyrpcRunner &&)=delete;
 
 
-  void RegisterHttpServlet(const std::string &, HttpServlet::ptr);
-  void RegisterService(std::shared_ptr<google::protobuf::Service>);
+  template<typename T, 
+    typename=std::enable_if_t<std::is_base_of_v<HttpServlet, T>>>
+  // requires (std::is_base_of_v<HttpServlet, T>)
+  void RegisterHttpServlet(const std::string &url_path) {
+    if constexpr (std::is_base_of_v<AsyncHttpServlet, T>) {
+      if(!gRpcServer_->registerHttpServlet(url_path, 
+          std::make_shared<T>(std::weak_ptr<CoroutinePool> (corPool_)))) {
+        printf("Start TinyRPC server error, because register http servelt error, \
+          please look up rpc log get more details!\n"); \
+        tinyrpc::Exit(0);
+      }
+    } else {
+      if(!gRpcServer_->registerHttpServlet(url_path, std::make_shared<T>())) {
+        printf("Start TinyRPC server error, because register http servelt error, \
+          please look up rpc log get more details!\n"); \
+        tinyrpc::Exit(0);
+      }
+    }
+  }
 
+
+  template<typename T, 
+    typename=std::enable_if_t<std::is_base_of_v<google::protobuf::Service, T>>>
+  // requires (std::is_base_of_v<google::protobuf::Service, T>)
+  void RegisterService() {
+    if(!gRpcServer_->registerService(std::make_shared<T>())) {
+      printf("Start TinyRPC server error, because register http servelt error, \
+        please look up rpc log get more details!\n"); \
+      tinyrpc::Exit(0);
+    }
+  }
 
   TcpServer::ptr GetServer();
   Config::ptr GetConfig();
-  int GetIOThreadPoolSize();
 
-  void InitServiceConfig();
   void StartRpcServer();
 
   void AddTimerEvent(TimerEvent::ptr);
 
 private:
+  void InitServiceConfig();
   void InitConfig();
   void InitLogger(std::shared_ptr<Logger> &);
   void InitServer();
+  void addReactorPerThread();
+
 
 private:
-  int g_init_config = 0;
+  // 构造顺序按照声明顺序
+  // 析构顺序按照反声明顺序
   std::string configName_;
 
   Config::ptr gRpcConfig_;
+
+  std::shared_ptr<CoroutinePool> corPool_;
+  std::shared_ptr<FdEventContainer> fdEventPool_;
+  std::shared_ptr<CoroutineTaskQueue> couroutine_task_queue_;
+
   TcpServer::ptr gRpcServer_;
 };
 

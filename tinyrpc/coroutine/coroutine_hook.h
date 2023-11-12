@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <memory>
 
 typedef ssize_t (*read_fun_ptr_t)(int fd, void *buf, size_t count);
 
@@ -21,13 +22,15 @@ typedef int (*sleep_fun_ptr_t)(unsigned int seconds);
 
 namespace tinyrpc {
 
-int accept_hook(int sockfd, struct sockaddr *addr, socklen_t *addrlen);
+class FdEvent;
 
-ssize_t read_hook(int fd, void *buf, size_t count);
+int accept_hook(std::shared_ptr<FdEvent>, struct sockaddr *, socklen_t *);
 
-ssize_t write_hook(int fd, const void *buf, size_t count);
+ssize_t read_hook(std::shared_ptr<FdEvent>, void *, size_t);
 
-int connect_hook(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
+ssize_t write_hook(std::shared_ptr<FdEvent>, const void *, size_t);
+
+int connect_hook(std::shared_ptr<FdEvent>, const struct sockaddr *, socklen_t);
 
 unsigned int sleep_hook(unsigned int seconds);
 

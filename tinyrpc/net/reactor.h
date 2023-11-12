@@ -29,6 +29,7 @@ enum class ReactorType {
 
 class FdEvent;
 class Timer;
+class CoroutineTaskQueue;
 
 // typedef std::shared_ptr<Timer> TimerPtr;
 
@@ -104,12 +105,13 @@ class Reactor {
 
   ReactorType m_reactor_type {ReactorType::SubReactor};
 
+  std::weak_ptr<CoroutineTaskQueue> weakCorTaskQueue_;
+
 };
 
 
 class CoroutineTaskQueue {
  public:
-  static CoroutineTaskQueue* GetCoroutineTaskQueue();
 
   void push(FdEvent* fd);
 

@@ -7,6 +7,8 @@
 
 namespace tinyrpc {
 
+class CoroutinePool;
+
 class HttpServlet : public std::enable_shared_from_this<HttpServlet> {
  public:
   typedef std::shared_ptr<HttpServlet> ptr;
@@ -44,6 +46,20 @@ class NotFoundHttpServlet: public HttpServlet {
   std::string getServletName();
 
 };
+
+
+class AsyncHttpServlet : public HttpServlet {
+ public:
+
+  AsyncHttpServlet(std::weak_ptr<CoroutinePool> corPool) : weakCorPool_(corPool) {}
+
+  std::weak_ptr<CoroutinePool> getWeakPointoroutinePool() {return weakCorPool_;}
+
+private:
+  std::weak_ptr<CoroutinePool> weakCorPool_;
+
+};
+
 
 }
 

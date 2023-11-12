@@ -36,9 +36,13 @@ class TcpConnection : public std::enable_shared_from_this<TcpConnection> {
  public:
  	typedef std::shared_ptr<TcpConnection> ptr;
 
-	TcpConnection(tinyrpc::TcpServer* tcp_svr, tinyrpc::IOThread* io_thread, int fd, int buff_size, NetAddress::ptr peer_addr);
+	TcpConnection(tinyrpc::TcpServer* tcp_svr, tinyrpc::IOThread* io_thread, \
+    int fd, int buff_size, NetAddress::ptr peer_addr, \
+    std::weak_ptr<CoroutinePool>, std::weak_ptr<FdEventContainer>);
 
-	TcpConnection(tinyrpc::TcpClient* tcp_cli, tinyrpc::Reactor* reactor, int fd, int buff_size, NetAddress::ptr peer_addr);
+	TcpConnection(tinyrpc::TcpClient* tcp_cli, tinyrpc::Reactor* reactor, \
+    int fd, int buff_size, NetAddress::ptr peer_addr, \
+    std::weak_ptr<FdEventContainer>);
 
   void setUpClient();
 
@@ -122,6 +126,9 @@ class TcpConnection : public std::enable_shared_from_this<TcpConnection> {
 
   RWMutex m_mutex;
 
+  std::weak_ptr<CoroutinePool> weakCorPool_;
+
+  std::weak_ptr<FdEventContainer> weakFdEventPool_;
 };
 
 }

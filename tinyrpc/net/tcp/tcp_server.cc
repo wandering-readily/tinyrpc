@@ -18,8 +18,8 @@
 namespace tinyrpc {
 
 
-TcpAcceptor::TcpAcceptor(NetAddress::ptr net_addr) : m_local_addr(net_addr) {
-	
+TcpAcceptor::TcpAcceptor(NetAddress::ptr net_addr, std::weak_ptr<FdEventContainer> fdEventPool) \
+		: m_local_addr(net_addr), weakFdEventPool_(fdEventPool) {
 	m_family = m_local_addr->getFamily();
 }
 
@@ -63,7 +63,12 @@ void TcpAcceptor::init() {
 }
 
 TcpAcceptor::~TcpAcceptor() {
-  FdEvent::ptr fd_event = FdEventContainer::GetFdContainer()->getFdEvent(m_fd);
+  std::shared_ptr<tinyrpc::FdEventContainer> fdEventPool = weakFdEventPool_.lock();
+	if (!fdEventPool) [[unlikely]] 
+	{
+		Exit(0);
+	}
+  FdEvent::ptr fd_event = fdEventPool->getFdEvent(m_fd);
   fd_event->unregisterFromReactor();
 	if (m_fd != -1) {
 		close(m_fd);
@@ -80,7 +85,13 @@ int TcpAcceptor::toAccept() {
 		memset(&cli_addr, 0, sizeof(cli_addr));
 		len = sizeof(cli_addr);
 		// call hook accept
-		rt = accept_hook(m_fd, reinterpret_cast<sockaddr *>(&cli_addr), &len);
+		
+		std::shared_ptr<tinyrpc::FdEventContainer> fdEventPool = weakFdEventPool_.lock();
+		if (!fdEventPool) [[unlikely]] 
+		{
+			Exit(0);
+		}
+		rt = accept_hook(fdEventPool->getFdEvent(m_fd), reinterpret_cast<sockaddr *>(&cli_addr), &len);
 		if (rt == -1) {
 			RpcDebugLog << "error, no new client coming, errno=" << errno << "error=" << strerror(errno);
 			return -1;
@@ -92,7 +103,12 @@ int TcpAcceptor::toAccept() {
 		len = sizeof(cli_addr);
 		memset(&cli_addr, 0, sizeof(cli_addr));
 		// call hook accept
-		rt = accept_hook(m_fd, reinterpret_cast<sockaddr *>(&cli_addr), &len);
+		std::shared_ptr<tinyrpc::FdEventContainer> fdEventPool = weakFdEventPool_.lock();
+		if (!fdEventPool) [[unlikely]] 
+		{
+			Exit(0);
+		}
+		rt = accept_hook(fdEventPool->getFdEvent(m_fd), reinterpret_cast<sockaddr *>(&cli_addr), &len);
 		if (rt == -1) {
 			RpcDebugLog << "error, no new client coming, errno=" << errno << "error=" << strerror(errno);
 			return -1;
@@ -111,10 +127,14 @@ int TcpAcceptor::toAccept() {
 
 
 // TcpServer::TcpServer(NetAddress::ptr addr, ProtocalType type /*= TinyPb_Protocal*/) : m_addr(addr) {
-TcpServer::TcpServer(Config *config) : m_addr(config->addr) {
+TcpServer::TcpServer(Config *config, std::weak_ptr<CoroutinePool> corPool, \
+		std::weak_ptr<FdEventContainer> fdEventPool)
+	 	: m_addr(config->addr), \
+		weakCorPool_(corPool), \
+		weakFdEventPool_(fdEventPool) {
 
-  m_io_pool = std::make_shared<IOThreadPool>(config->m_iothread_num);
-  m_protocal_type = config->protocal;
+	m_io_pool = std::make_shared<IOThreadPool>(config->m_iothread_num, weakCorPool_);
+	m_protocal_type = config->protocal;
 	if (config->protocal == ProtocalType::Http_Protocal) {
 		m_dispatcher = std::make_shared<HttpDispacther>();
 		m_codec = std::make_shared<HttpCodeC>();
@@ -137,12 +157,18 @@ TcpServer::TcpServer(Config *config) : m_addr(config->addr) {
 	RpcInfoLog << "TcpServer setup on [" << m_addr->toString() << "]";
 }
 
-void TcpServer::start() {
+void TcpServer::start(std::weak_ptr<CoroutineTaskQueue> corTaskQueue) {
 
-	m_acceptor.reset(new TcpAcceptor(m_addr));
+  m_io_pool->beginThreadPool(corTaskQueue);
+	m_acceptor.reset(new TcpAcceptor(m_addr, weakFdEventPool_));
   m_acceptor->init();
 	// 得到当前coroutine，并且设置回调函数
-	m_accept_cor = GetCoroutinePool()->getCoroutineInstanse();
+	std::shared_ptr<tinyrpc::CoroutinePool> corPool = weakCorPool_.lock();
+	if (!corPool) [[unlikely]]
+	{
+		Exit(0);
+	}
+	m_accept_cor = corPool->getCoroutineInstanse();
 	m_accept_cor->setCallBack(std::bind(&TcpServer::MainAcceptCorFunc, this));
 
 	RpcInfoLog << "resume accept coroutine";
@@ -156,7 +182,14 @@ void TcpServer::start() {
 // 由于TcpServer自己抽取了一个m_accept_cor，所以需要释放
 TcpServer::~TcpServer() {
 	// 还回m_acceptor_coroutine
-	GetCoroutinePool()->returnCoroutine(m_accept_cor);
+	std::shared_ptr<tinyrpc::CoroutinePool> corPool = weakCorPool_.lock();
+	if (!corPool) [[unlikely]]
+	{
+		RpcErrorLog << "CoroutinePool down before ~TcpServer, and m_accept_cor " \
+			<< m_accept_cor << " runs";
+		return;
+	}
+	corPool->returnCoroutine(m_accept_cor);
   RpcDebugLog << "~TcpServer";
 }
 
@@ -245,12 +278,14 @@ TcpConnection::ptr TcpServer::addClient(IOThread* io_thread, int fd) {
 		// 由于ClearClientTimerFunc()函数删除了shared_ptr指针
 		// 但是m_clients (fd, shared_ptr<TcpConnecytion>(此时是nullptr))仍在
 		// 因此在这里重建
-		it->second = std::make_shared<TcpConnection>(this, io_thread, fd, 128, getPeerAddr());
+		it->second = std::make_shared<TcpConnection>(this, io_thread, \
+			fd, 128, getPeerAddr(), weakCorPool_, weakFdEventPool_);
 		return it->second;
 
   } else {
 		RpcDebugLog << "fd " << fd << "did't exist, new it";
-    TcpConnection::ptr conn = std::make_shared<TcpConnection>(this, io_thread, fd, 128, getPeerAddr()); 
+    TcpConnection::ptr conn = std::make_shared<TcpConnection>(this, io_thread, \
+		fd, 128, getPeerAddr(), weakCorPool_, weakFdEventPool_); 
     m_clients.insert(std::make_pair(fd, conn));
 		return conn;
   }

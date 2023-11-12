@@ -14,6 +14,7 @@
 namespace tinyrpc {
 
 class TcpServer;
+class CoroutinePool;
 
 /*
  *  IO 线程就是一个 SubReactor
@@ -23,7 +24,9 @@ class IOThread {
  public:
   
   typedef std::shared_ptr<IOThread> ptr;
- 	IOThread();
+ 	IOThread(std::weak_ptr<CoroutineTaskQueue> corTaskQueue);
+
+  std::weak_ptr<CoroutineTaskQueue> getweakCorTaskQueue() {return weakCorTaskQueue_;}
 
 	~IOThread();  
 
@@ -36,7 +39,7 @@ class IOThread {
   int getThreadIndex();
 
   sem_t* getStartSemaphore();
-
+  
 
  public:
   static IOThread* GetCurrentIOThread();
@@ -55,6 +58,9 @@ class IOThread {
 
   sem_t m_start_semaphore;
 
+private:
+  std::weak_ptr<CoroutineTaskQueue> weakCorTaskQueue_;
+
 };
 
 class IOThreadPool {
@@ -62,7 +68,9 @@ class IOThreadPool {
  public:
   typedef std::shared_ptr<IOThreadPool> ptr;
 
-  IOThreadPool(int size);
+  IOThreadPool(int size, std::weak_ptr<CoroutinePool>);
+
+  void beginThreadPool(std::weak_ptr<CoroutineTaskQueue>);
 
   void start();
 
@@ -93,6 +101,8 @@ class IOThreadPool {
 
   std::vector<IOThread::ptr> m_io_threads;
   
+  std::weak_ptr<CoroutinePool> weakCorPool_;
+
 };
 
 
