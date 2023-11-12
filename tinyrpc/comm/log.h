@@ -122,7 +122,7 @@ std::string formatString(const char* str, Args&&... args) {
 
 
 
-// 
+// 输出到conf指定文件
 #define RpcDebugLog \
   if (tinyrpc::OpenLogger()) \
     tinyrpc::LogInGrpcLogger( \

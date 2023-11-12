@@ -16,7 +16,7 @@ tinyrpc::Logger::ptr gRpcLogger;
 void TinyrpcRunner::RegisterHttpServlet(const std::string &url_path, HttpServlet::ptr servlet) {
   do { 
   if(!gRpcServer_->registerHttpServlet(url_path, servlet)) {
-    printf("Start TinyRPC server error, because register http servelt error, \ 
+    printf("Start TinyRPC server error, because register http servelt error, \
       please look up rpc log get more details!\n"); \
     tinyrpc::Exit(0);
   }
@@ -33,12 +33,15 @@ void TinyrpcRunner::RegisterService(std::shared_ptr<google::protobuf::Service> s
  } while(0);
 }
 
-
-void TinyrpcRunner::StartService() {
+void TinyrpcRunner::InitServiceConfig() {
   InitConfig();
   InitLogger(gRpcLogger);
   InitServer();
-  StartRpcServer(gRpcLogger);
+  gRpcLogger->start();
+}
+
+void TinyrpcRunner::StartRpcServer() {
+  gRpcServer_->start();
 }
 
 TcpServer::ptr TinyrpcRunner::GetServer() {
@@ -82,11 +85,6 @@ void TinyrpcRunner::InitLogger(std::shared_ptr<Logger> &logger) {
 };
 void TinyrpcRunner::InitServer() {
   gRpcServer_ = std::make_shared<TcpServer>(gRpcConfig_.get());
-}
-
-void TinyrpcRunner::StartRpcServer(std::shared_ptr<Logger> &logger) {
-  logger->start();
-  gRpcServer_->start();
 }
 
 

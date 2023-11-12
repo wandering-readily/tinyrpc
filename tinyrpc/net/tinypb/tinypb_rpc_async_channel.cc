@@ -19,6 +19,7 @@
 #include "tinyrpc/coroutine/coroutine_pool.h"
 #include "tinyrpc/coroutine/coroutine.h"
 
+#include "tinyrpc/net/reactor.h"
 
 namespace tinyrpc {
 
@@ -104,7 +105,13 @@ void TinyPbRpcAsyncChannel::CallMethod(const google::protobuf::MethodDescriptor*
   };
   // m_pending_cor是寻找的新coroutine(cb函数是cb)
   // 转换进去m_pending_cor 将作为cb放入任一线程(但是不能在本线程当中)
-  m_pending_cor = GetServer()->getIOThreadPool()->addCoroutineToRandomThread(cb, false);
+  // m_pending_cor = GetServer()->getIOThreadPool()->addCoroutineToRandomThread(cb, false);
+
+  // !!!
+  // 还要添加代码, reacotr
+  m_pending_cor = GetCoroutinePool()->getCoroutineInstanse();
+  m_pending_cor->setCallBack(cb);
+  m_current_iothread->getReactor()->addCoroutine(m_pending_cor, true);
 
 }
 

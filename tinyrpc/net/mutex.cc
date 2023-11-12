@@ -69,7 +69,7 @@ void CoroutineMutex::unlock() {
       return;
     }
 
-    Coroutine* cor = m_sleep_cors.front();
+    cor = m_sleep_cors.front();
     m_sleep_cors.pop();
   }
   }

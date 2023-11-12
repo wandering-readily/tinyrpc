@@ -24,7 +24,7 @@ class TimerEvent {
   TimerEvent(int64_t interval, bool is_repeated, std::function<void()>task)
     : m_interval(interval), m_is_repeated(is_repeated), m_task(task) {
     m_arrive_time = getNowMs() + m_interval;  	
-    RpcDebugLogStream << "timeevent will occur at " << m_arrive_time;
+    RpcDebugLog << "timeevent will occur at " << m_arrive_time;
   }
 
   // 设置下次到达时间

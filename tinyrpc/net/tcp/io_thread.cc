@@ -84,7 +84,7 @@ void* IOThread::main(void* arg) {
   t_cur_io_thread = thread;
   thread->m_reactor = t_reactor_ptr;
   // IO thread reactor设置为SubReactor
-  thread->m_reactor->setReactorType(SubReactor);
+  thread->m_reactor->setReactorType(ReactorType::SubReactor);
   thread->m_tid = gettid();
 
   // 这里至关重要
@@ -109,13 +109,6 @@ void* IOThread::main(void* arg) {
   return nullptr;
 }
 
-// ???
-// IOThread addClient操作作用?
-void IOThread::addClient(TcpConnection* tcp_conn) {
-  tcp_conn->registerToTimeWheel();
-  tcp_conn->setUpServer();
-  return;
-}
 
 IOThreadPool::IOThreadPool(int size) : m_size(size) {
   m_io_threads.resize(size);

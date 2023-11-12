@@ -42,13 +42,11 @@ class TcpConnection : public std::enable_shared_from_this<TcpConnection> {
 
   void setUpClient();
 
-  void setUpServer();
-
 	~TcpConnection();
 
   void initBuffer(int size);
 
-  enum ConnectionType {
+  enum class ConnectionType {
     ServerConnection = 1,     // owned by tcp_server
     ClientConnection = 2,     // owned by tcp_client
   };
@@ -100,7 +98,7 @@ class TcpConnection : public std::enable_shared_from_this<TcpConnection> {
 
   int m_fd {-1};
   TcpConnectionState m_state {TcpConnectionState::Connected};
-  ConnectionType m_connection_type {ServerConnection};
+  ConnectionType m_connection_type {ConnectionType::ServerConnection};
 
   NetAddress::ptr m_peer_addr;
 

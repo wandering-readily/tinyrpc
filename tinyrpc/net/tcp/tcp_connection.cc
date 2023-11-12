@@ -15,7 +15,7 @@
 namespace tinyrpc {
 
 TcpConnection::TcpConnection(tinyrpc::TcpServer* tcp_svr, tinyrpc::IOThread* io_thread, int fd, int buff_size, NetAddress::ptr peer_addr)
-  : m_io_thread(io_thread), m_fd(fd), m_state(Connected), m_connection_type(ServerConnection), m_peer_addr(peer_addr) {	
+  : m_io_thread(io_thread), m_fd(fd), m_state(Connected), m_connection_type(ConnectionType::ServerConnection), m_peer_addr(peer_addr) {	
   m_reactor = m_io_thread->getReactor();
 
   // RpcDebugLog << "m_state=[" << m_state << "], =" << fd;
@@ -35,7 +35,7 @@ TcpConnection::TcpConnection(tinyrpc::TcpServer* tcp_svr, tinyrpc::IOThread* io_
 }
 
 TcpConnection::TcpConnection(tinyrpc::TcpClient* tcp_cli, tinyrpc::Reactor* reactor, int fd, int buff_size, NetAddress::ptr peer_addr)
-  : m_fd(fd), m_state(NotConnected), m_connection_type(ClientConnection), m_peer_addr(peer_addr) {
+  : m_fd(fd), m_state(NotConnected), m_connection_type(ConnectionType::ClientConnection), m_peer_addr(peer_addr) {
   m_reactor = reactor;
 
   m_tcp_cli = tcp_cli;
@@ -54,10 +54,6 @@ void TcpConnection::initServer() {
   registerToTimeWheel();
   m_loop_cor->setCallBack(std::bind(&TcpConnection::MainServerLoopCorFunc, this));
 }
-void TcpConnection::setUpServer() {
-  m_reactor->addCoroutine(m_loop_cor);
-}
-
 
 void TcpConnection::registerToTimeWheel() {
   // cb回调函数不持有conn shared_ptr指针，因为参数传入
@@ -84,7 +80,7 @@ void TcpConnection::setUpClient() {
 
 // 也就是TcpConnection结束，才释放coroutine
 TcpConnection::~TcpConnection() {
-  if (m_connection_type == ServerConnection) {
+  if (m_connection_type == ConnectionType::ServerConnection) {
     GetCoroutinePool()->returnCoroutine(m_loop_cor);
   }
 
@@ -145,8 +141,15 @@ void TcpConnection::input() {
       RpcInfoLog << "over timer, now break read function";
       break;
     }
+    
+    // rt <= 0 server和client需要调用此段代码
+    // server shutdown后, 发送FIN
+    // client接收到Fin, read() ==> 0
+    // client关闭连接, 发送FIN
+    // server接收到FIN, read() ==> 0, server关闭连接
+    // 这样就避免直接close, 有些数据没有及时读取和发送
     if (rt <= 0) {
-      RpcDebugLog << "rt <= 0";
+      RpcDebugLog << "rt < 0";
       RpcErrorLog << "read empty while occur read event, because of peer close, fd= " << m_fd << ", sys error=" << strerror(errno) << ", now to clear tcp connection";
       // this cor can destroy
       // 可能是
@@ -184,7 +187,7 @@ void TcpConnection::input() {
     RpcErrorLog << "not read all data in socket buffer";
   }
   RpcInfoLog << "recv [" << count << "] bytes data from [" << m_peer_addr->toString() << "], fd [" << m_fd << "]";
-  if (m_connection_type == ServerConnection) {
+  if (m_connection_type == ConnectionType::ServerConnection) {
     TcpTimeWheel::TcpConnectionSlot::ptr tmp = m_weak_slot.lock();
     if (tmp) {
       m_tcp_svr->freshTcpConnection(tmp);
@@ -212,11 +215,11 @@ void TcpConnection::execute() {
       break;
     }
     // RpcDebugLog << "it parse request success";
-    if (m_connection_type == ServerConnection) {
+    if (m_connection_type == ConnectionType::ServerConnection) {
       // RpcDebugLog << "to dispatch this package";
       m_tcp_svr->getDispatcher()->dispatch(data.get(), this);
       // RpcDebugLog << "contine parse next package";
-    } else if (m_connection_type == ClientConnection) {
+    } else if (m_connection_type == ConnectionType::ClientConnection) {
       // TODO:
       std::shared_ptr<TinyPbStruct> tmp = std::dynamic_pointer_cast<TinyPbStruct>(data);
       if (tmp) {
@@ -252,10 +255,13 @@ void TcpConnection::output() {
       RpcErrorLog << "write empty, error=" << strerror(errno);
     }
 
-    RpcDebugLog << "succ write " << rt << " bytes";
-    m_write_buffer->recycleRead(rt);
-    RpcDebugLog << "recycle write index =" << m_write_buffer->writeIndex() << ", read_index =" << m_write_buffer->readIndex() << "readable = " << m_write_buffer->readAble();
-    RpcInfoLog << "send[" << rt << "] bytes data to [" << m_peer_addr->toString() << "], fd [" << m_fd << "]";
+    if (rt > 0) {
+      RpcDebugLog << "succ write " << rt << " bytes";
+      m_write_buffer->recycleRead(rt);
+      RpcDebugLog << "recycle write index =" << m_write_buffer->writeIndex() << ", read_index =" << m_write_buffer->readIndex() << "readable = " << m_write_buffer->readAble();
+      RpcInfoLog << "send[" << rt << "] bytes data to [" << m_peer_addr->toString() << "], fd [" << m_fd << "]";
+    }
+
     if (m_write_buffer->readAble() <= 0) {
       // RpcInfoLog << "send all data, now unregister write event on reactor and yield Coroutine";
       RpcInfoLog << "send all data, now unregister write event and break";

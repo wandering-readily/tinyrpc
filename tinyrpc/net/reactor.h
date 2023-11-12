@@ -22,7 +22,7 @@ namespace tinyrpc {
  * 
  * 对于 SubReactor，它注册的是 clientfd，因此它负责跟客户端进行数据交互。
  */
-enum ReactorType {
+enum class ReactorType {
   MainReactor = 1,    // main rewactor, only set this by main thread.
   SubReactor = 2      // child reactor, every io thread is this type
 };
@@ -102,7 +102,7 @@ class Reactor {
 
   Timer* m_timer {nullptr};
 
-  ReactorType m_reactor_type {SubReactor};
+  ReactorType m_reactor_type {ReactorType::SubReactor};
 
 };
 

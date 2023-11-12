@@ -36,7 +36,8 @@ public:
   Config::ptr GetConfig();
   int GetIOThreadPoolSize();
 
-  void StartService();
+  void InitServiceConfig();
+  void StartRpcServer();
 
   void AddTimerEvent(TimerEvent::ptr);
 
@@ -44,7 +45,6 @@ private:
   void InitConfig();
   void InitLogger(std::shared_ptr<Logger> &);
   void InitServer();
-  void StartRpcServer(std::shared_ptr<Logger> &);
 
 private:
   int g_init_config = 0;

@@ -29,8 +29,6 @@ class IOThread {
 
   Reactor* getReactor();
 
-  void addClient(TcpConnection* tcp_conn);
-
   pthread_t getPthreadId();
 
   void setThreadIndex(const int index);

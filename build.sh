@@ -2,6 +2,19 @@
 
 set -x
 
+if [ ! -d "./bin/" ];then
+    mkdir bin 
+fi
+
+if [ ! -d "./lib/" ];then
+    mkdir lib
+fi
+
+if [ ! -d "./log/" ];then
+    mkdir log
+    chmod a+rw log
+fi
+
 SOURCE_DIR=`pwd`
 BUILD_DIR=${BUILD_DIR:-./build}
 BIN_DIR=${BIN_DIR:-./bin}

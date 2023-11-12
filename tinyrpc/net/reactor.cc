@@ -263,7 +263,7 @@ void Reactor::loop() {
      * IO线程从coroutinePool获取coroutine任务
      * 这里应该算是这个循环执行的第二个任务 
      */
-    if (m_reactor_type != MainReactor) {
+    if (m_reactor_type != ReactorType::MainReactor) {
       FdEvent* ptr = NULL;
       // ptr->setReactor(NULL);
       while(1) {
@@ -382,7 +382,7 @@ void Reactor::loop() {
                   first_coroutine = ptr->getCoroutine();
                   continue;
                 }
-                if (m_reactor_type == SubReactor) {
+                if (m_reactor_type == ReactorType::SubReactor) {
                   // !!!
                   // 从作者知乎找到答案
                   // 如果是子reactor的内容, 从当前reactor删除当前事件
