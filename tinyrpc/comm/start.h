@@ -5,6 +5,7 @@
 #include <memory>
 #include <stdio.h>
 #include <functional>
+#include <any>
 #include "tinyrpc/comm/log.h"
 #include "tinyrpc/net/tcp/tcp_server.h"
 #include "tinyrpc/net/timer.h"
@@ -14,21 +15,21 @@ namespace tinyrpc {
 
 class CoroutinePool;
 
-class TinyrpcRunner final {
+class TinyrpcServer final {
 
 public:
-  TinyrpcRunner(const char *);
-  TinyrpcRunner(const std::string &);
+  TinyrpcServer(const char *);
+  TinyrpcServer(const std::string &);
 
-  ~TinyrpcRunner()=default;
+  ~TinyrpcServer()=default;
 
-  TinyrpcRunner(const TinyrpcRunner &)=delete;
-  TinyrpcRunner(TinyrpcRunner &&)=delete;
-  TinyrpcRunner &operator=(const TinyrpcRunner &)=delete;
-  TinyrpcRunner &operator=(TinyrpcRunner &&)=delete;
+  TinyrpcServer(const TinyrpcServer &)=delete;
+  TinyrpcServer(TinyrpcServer &&)=delete;
+  TinyrpcServer &operator=(const TinyrpcServer &)=delete;
+  TinyrpcServer &operator=(TinyrpcServer &&)=delete;
 
 
-  template<typename T, 
+  template <typename T, 
     typename=std::enable_if_t<std::is_base_of_v<HttpServlet, T>>>
   // requires (std::is_base_of_v<HttpServlet, T>)
   void RegisterHttpServlet(const std::string &url_path) {
@@ -49,7 +50,7 @@ public:
   }
 
 
-  template<typename T, 
+  template <typename T, 
     typename=std::enable_if_t<std::is_base_of_v<google::protobuf::Service, T>>>
   // requires (std::is_base_of_v<google::protobuf::Service, T>)
   void RegisterService() {

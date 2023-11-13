@@ -79,9 +79,9 @@ int main(int argc, char* argv[]) {
     return 0;
   }
 
-  tinyrpc::TinyrpcRunner runner(argv[1]);
-  runner.RegisterService<QueryServiceImpl>();
-  runner.StartRpcServer();
+  tinyrpc::TinyrpcServer server(argv[1]);
+  server.RegisterService<QueryServiceImpl>();
+  server.StartRpcServer();
 
   return 0;
 }

@@ -18,14 +18,14 @@ extern bool Init_m_max_connect_timeout(int);
 
 tinyrpc::Logger::ptr gRpcLogger;
 
-TinyrpcRunner::TinyrpcRunner(const char *configName) : configName_(configName) {
+TinyrpcServer::TinyrpcServer(const char *configName) : configName_(configName) {
   InitServiceConfig();
 }
-TinyrpcRunner::TinyrpcRunner(const std::string &configName) : configName_(configName) {
+TinyrpcServer::TinyrpcServer(const std::string &configName) : configName_(configName) {
   InitServiceConfig();
 }
 
-void TinyrpcRunner::InitServiceConfig() {
+void TinyrpcServer::InitServiceConfig() {
   InitConfig();
 
   corPool_ = std::make_shared<CoroutinePool>(
@@ -38,19 +38,19 @@ void TinyrpcRunner::InitServiceConfig() {
   gRpcLogger->start();
 }
 
-void TinyrpcRunner::StartRpcServer() {
+void TinyrpcServer::StartRpcServer() {
   gRpcServer_->start(couroutine_task_queue_);
 }
 
-TcpServer::ptr TinyrpcRunner::GetServer() {
+TcpServer::ptr TinyrpcServer::GetServer() {
   return gRpcServer_;
 }
-Config::ptr TinyrpcRunner::GetConfig() {
+Config::ptr TinyrpcServer::GetConfig() {
   return gRpcConfig_;
 }
 
 
-void TinyrpcRunner::InitConfig() {
+void TinyrpcServer::InitConfig() {
   tinyrpc::SetHook(false);
 
   #ifdef DECLARE_MYSQL_PULGIN
@@ -73,7 +73,7 @@ void TinyrpcRunner::InitConfig() {
   Init_m_max_connect_timeout(gRpcConfig_->m_max_connect_timeout);
 }
 
-void TinyrpcRunner::InitLogger(std::shared_ptr<Logger> &logger) {
+void TinyrpcServer::InitLogger(std::shared_ptr<Logger> &logger) {
   if (logger){
     return ;
   }
@@ -81,11 +81,11 @@ void TinyrpcRunner::InitLogger(std::shared_ptr<Logger> &logger) {
   logger->init(gRpcConfig_->m_log_prefix.c_str(), gRpcConfig_->m_log_path.c_str(), 
                     gRpcConfig_->m_log_max_size, gRpcConfig_->m_log_sync_inteval);
 };
-void TinyrpcRunner::InitServer() {
+void TinyrpcServer::InitServer() {
   gRpcServer_ = std::make_shared<TcpServer>(gRpcConfig_.get(), corPool_, fdEventPool_);
 }
 
 
-void TinyrpcRunner::AddTimerEvent(TimerEvent::ptr event) {}
+void TinyrpcServer::AddTimerEvent(TimerEvent::ptr event) {}
 
 } // namespace tinyrpc

@@ -74,6 +74,7 @@ void TinyPbRpcAsyncChannel::CallMethod(const google::protobuf::MethodDescriptor*
     rpc_controller->SetMsgReq(run_time->m_msg_no);
     RpcDebugLog << "get from RunTime succ, msgno=" << run_time->m_msg_no;
   } else {
+    // 调用rpc_channel时，从这生成msg_req_no
     rpc_controller->SetMsgReq(MsgReqUtil::genMsgNumber());
     RpcDebugLog << "get from RunTime error, generate new msgno=" << rpc_controller->MsgSeq();
   }

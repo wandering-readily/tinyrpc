@@ -53,6 +53,7 @@ void TinyPbRpcChannel::CallMethod(const google::protobuf::MethodDescriptor* meth
       pb_struct.msg_req = run_time->m_msg_no;
       RpcDebugLog << "get from RunTime succ, msgno = " << pb_struct.msg_req;
     } else {
+      // 调用rpc_channel时，从这生成msg_req_no
       pb_struct.msg_req = MsgReqUtil::genMsgNumber();
       RpcDebugLog << "get from RunTime error, generate new msgno = " << pb_struct.msg_req;
     }

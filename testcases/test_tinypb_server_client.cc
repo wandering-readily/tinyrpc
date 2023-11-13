@@ -7,6 +7,9 @@
 #include "tinyrpc/net/net_address.h"
 #include "test_tinypb_server.pb.h"
 
+#include "tinyrpc/comm/client.hpp"
+#include <string>
+
 void test_client() {
 
   // tinyrpc::IPAddress::ptr addr = std::make_shared<tinyrpc::IPAddress>("127.0.0.1", 39999);
@@ -36,6 +39,12 @@ void test_client() {
 int main(int argc, char* argv[]) {
 
   test_client();
+
+  tinyrpc::TinyrpcClient<tinyrpc::IPAddress> client("127.0.0.1", 20000);
+  queryAgeReq rpc_req;
+  queryAgeRes rpc_res;
+
+  client.Call<QueryService>("query_age", &rpc_req, &rpc_res);
 
   return 0;
 }

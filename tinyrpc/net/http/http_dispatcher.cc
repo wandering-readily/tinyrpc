@@ -13,6 +13,7 @@ namespace tinyrpc {
 void HttpDispacther::dispatch(AbstractData* data, TcpConnection* conn) {
   HttpRequest* resquest = dynamic_cast<HttpRequest*>(data);
   HttpResponse response;
+  // 从http接收到的任务，从这生成msg_req_no
   Coroutine::GetCurrentCoroutine()->getRunTime()->m_msg_no = MsgReqUtil::genMsgNumber();
   setCurrentRunTime(Coroutine::GetCurrentCoroutine()->getRunTime());
 

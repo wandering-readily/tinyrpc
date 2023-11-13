@@ -8,6 +8,8 @@ set(HEADERS
     start.h
     string_util.h
     thread_pool.h
+
+    client.hpp
 )
 
 install(FILES ${HEADERS} DESTINATION include/tinyrpc/comm)

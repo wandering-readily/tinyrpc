@@ -105,8 +105,6 @@ class Reactor {
 
   ReactorType m_reactor_type {ReactorType::SubReactor};
 
-  std::weak_ptr<CoroutineTaskQueue> weakCorTaskQueue_;
-
 };
 
 

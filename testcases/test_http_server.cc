@@ -198,11 +198,11 @@ int main(int argc, char* argv[]) {
     return 0;
   }
 
-  tinyrpc::TinyrpcRunner runner(argv[1]);
-  runner.RegisterHttpServlet<QPSHttpServlet>("/qps");
-  runner.RegisterHttpServlet<BlockCallHttpServlet>("/block");
-  runner.RegisterHttpServlet<NonBlockCallHttpServlet>("/nonblock");
-  runner.StartRpcServer();
+  tinyrpc::TinyrpcServer server(argv[1]);
+  server.RegisterHttpServlet<QPSHttpServlet>("/qps");
+  server.RegisterHttpServlet<BlockCallHttpServlet>("/block");
+  server.RegisterHttpServlet<NonBlockCallHttpServlet>("/nonblock");
+  server.StartRpcServer();
 
   return 0;
 }
