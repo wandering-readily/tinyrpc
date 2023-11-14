@@ -76,6 +76,10 @@ class TcpConnection : public std::enable_shared_from_this<TcpConnection> {
 
   Coroutine::ptr getCoroutine();
 
+  int64_t getServerCloseConnTime() const {return serverCloseConnTime_;}
+
+  void resetServerCloseConnTime(); 
+
  public:
   void MainServerLoopCorFunc();
 
@@ -129,6 +133,8 @@ class TcpConnection : public std::enable_shared_from_this<TcpConnection> {
   std::weak_ptr<CoroutinePool> weakCorPool_;
 
   std::weak_ptr<FdEventContainer> weakFdEventPool_;
+
+  std::atomic_int64_t serverCloseConnTime_;
 };
 
 }

@@ -21,7 +21,8 @@ TcpConnection::TcpConnection(tinyrpc::TcpServer* tcp_svr, tinyrpc::IOThread* io_
     m_connection_type(ConnectionType::ServerConnection), \
     m_peer_addr(peer_addr), \
     weakCorPool_(corPool), \
-    weakFdEventPool_(fdEventPool) {	
+    weakFdEventPool_(fdEventPool), \
+    serverCloseConnTime_(0) {	
 
   m_reactor = m_io_thread->getReactor();
 
@@ -81,14 +82,36 @@ TcpConnection::TcpConnection(tinyrpc::TcpClient* tcp_cli, tinyrpc::Reactor* reac
 }
 
 void TcpConnection::initServer() {
+  resetServerCloseConnTime();
   registerToTimeWheel();
   m_loop_cor->setCallBack(std::bind(&TcpConnection::MainServerLoopCorFunc, this));
 }
 
 void TcpConnection::registerToTimeWheel() {
   // cb回调函数不持有conn shared_ptr指针，因为参数传入
+
+  // std::function<void(TcpConnection::ptr)> cb;
+  // cb = [&cb] (TcpConnection::ptr conn) {
   auto cb = [] (TcpConnection::ptr conn) {
+    // 保活机制
     conn->shutdownConnection();
+    // std::cout << "conn count " << conn->m_weak_slot.lock().use_count() << std::endl;
+    // int64_t now = details::getNowMs();
+    // // 误差10ms
+    // if (conn->getServerCloseConnTime() > now + 10) {
+      // // 这里已经没到断开连接时间，注定不会onn->m_weak_slot.lock()不会析构
+      // // 避免多道shutdown命令影响性能，同时确定mainReacotr的timeWheel还有没有连接
+      // if (conn->m_weak_slot.lock().use_count() == 0) {
+        // TcpTimeWheel::TcpConnectionSlot::ptr tmp = 
+          // std::make_shared<AbstractSlot<TcpConnection>>(conn->shared_from_this(), cb);
+        // conn->m_weak_slot = tmp;
+        // conn->m_tcp_svr->freshTcpConnection(tmp);
+      // }
+      
+    // } else {
+      // std::cout << "shut down" << std::endl;
+      // conn->shutdownConnection();
+    // }
   };
   // shared_from_this()传入shared_ptr指针
   // 但是 在AbstractSlot<TcpConnection>中将shared_ptr转化为weak_ptr
@@ -228,6 +251,7 @@ void TcpConnection::input() {
   }
   RpcInfoLog << "recv [" << count << "] bytes data from [" << m_peer_addr->toString() << "], fd [" << m_fd << "]";
   if (m_connection_type == ConnectionType::ServerConnection) {
+    this->resetServerCloseConnTime();
     TcpTimeWheel::TcpConnectionSlot::ptr tmp = m_weak_slot.lock();
     if (tmp) {
       m_tcp_svr->freshTcpConnection(tmp);
@@ -415,6 +439,9 @@ Coroutine::ptr TcpConnection::getCoroutine() {
 }
 
 
+void TcpConnection::resetServerCloseConnTime() {
+  serverCloseConnTime_ = details::getNowMs() + m_tcp_svr->getConnectAliveTime();
+}
 
 
 

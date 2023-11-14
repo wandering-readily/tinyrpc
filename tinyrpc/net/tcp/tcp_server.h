@@ -79,6 +79,8 @@ class TcpServer {
 
   IOThreadPool::ptr getSharedIOThreadPool() {return m_io_pool;}
 
+  int64_t getConnectAliveTime() const {return connectAliveTime_;}
+
 
  public:
   AbstractDispatcher::ptr getDispatcher();
@@ -130,6 +132,8 @@ class TcpServer {
   std::weak_ptr<CoroutinePool> weakCorPool_;
 
   std::weak_ptr<FdEventContainer> weakFdEventPool_;
+
+  int64_t connectAliveTime_ = 10 * 10 * 1000;
 
 };
 

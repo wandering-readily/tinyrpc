@@ -11,9 +11,14 @@
 #include "tinyrpc/comm/log.h"
 
 
-namespace tinyrpc {
+namespace details {
 
 int64_t getNowMs();
+
+};
+
+
+namespace tinyrpc {
 
 
 class TimerEvent {
@@ -23,14 +28,14 @@ class TimerEvent {
   typedef std::shared_ptr<TimerEvent> ptr;
   TimerEvent(int64_t interval, bool is_repeated, std::function<void()>task)
     : m_interval(interval), m_is_repeated(is_repeated), m_task(task) {
-    m_arrive_time = getNowMs() + m_interval;  	
+    m_arrive_time = details::getNowMs() + m_interval;  	
     RpcDebugLog << "timeevent will occur at " << m_arrive_time;
   }
 
   // 设置下次到达时间
   void resetTime() {
     RpcDebugLog << "reset tiemrevent, origin arrivetime=" << m_arrive_time;
-    m_arrive_time = getNowMs() + m_interval;  	
+    m_arrive_time = details::getNowMs() + m_interval;  	
     RpcDebugLog << "reset tiemrevent, now arrivetime=" << m_arrive_time;
     m_is_cancled = false;
   }

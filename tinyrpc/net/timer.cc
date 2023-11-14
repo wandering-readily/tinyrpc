@@ -17,15 +17,19 @@
 
 extern read_fun_ptr_t g_sys_read_fun;  // sys read func
 
-namespace tinyrpc {
+namespace details {
 
-
+// 线程安全函数
 int64_t getNowMs() {
   timeval val;
   gettimeofday(&val, nullptr);
   int64_t re = val.tv_sec * 1000 + val.tv_usec / 1000;
   return re;
 }
+
+};
+
+namespace tinyrpc {
 
 Timer::Timer(Reactor* reactor) : FdEvent(reactor) {
 
@@ -104,7 +108,7 @@ void Timer::delTimerEvent(TimerEvent::ptr event) {
 }
 
 void Timer::resetArriveTime() {
-  int64_t now = getNowMs();
+  int64_t now = details::getNowMs();
   // 如果所有timer事务超时，那么1ms之后再执行
   int64_t interval = 100;
   {
@@ -151,7 +155,7 @@ void Timer::onTimer() {
     }
   }
 
-  int64_t now = getNowMs();
+  int64_t now = details::getNowMs();
   std::vector<TimerEvent::ptr> tmps;
   std::vector<std::pair<int64_t, std::function<void()>>> tasks;
   {

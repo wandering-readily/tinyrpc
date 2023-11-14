@@ -151,6 +151,10 @@ TcpServer::TcpServer(Config *config, std::weak_ptr<CoroutinePool> corPool, \
 	// 时间轮存放定时事件
 	m_time_wheel = std::make_shared<TcpTimeWheel>(m_main_reactor, config->m_timewheel_bucket_num, config->m_timewheel_inteval);
 
+	// connect存活的毫秒计数
+	// 也可以自己设置
+	connectAliveTime_ = config->m_timewheel_bucket_num * config->m_timewheel_inteval * 1000;
+
 	// 绑定删除clients过时连接
 	// 也就是每10s触发一次ClearClientTimerFunc
 	m_clear_clent_timer_event = std::make_shared<TimerEvent>(10000, true, std::bind(&TcpServer::ClearClientTimerFunc, this));
@@ -316,6 +320,13 @@ void TcpServer::ClearClientTimerFunc() {
   // 那么就会减少TcpConnection的shared_ptr指针，促进释放TcpConnection
   // 也会释放coroutine
   for (auto &i : m_clients) {
+	// debug connection
+	// std::cout << "connection fd: " << i.first ;
+	// if (i.second) {
+		// std::cout << ", state " << i.second->getState() << "\n";		
+	// } else {
+		// std::cout << ", conn out" << "\n";			
+	// }
     // TcpConnection::ptr s_conn = i.second;
 		// RpcDebugLog << "state = " << s_conn->getState();
 	// 需要等待当前连接设置为Closed状态后才能关闭TcpConnection
