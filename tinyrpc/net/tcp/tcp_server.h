@@ -60,11 +60,12 @@ class TcpServer {
 	// TcpServer(NetAddress::ptr addr, ProtocalType type = TinyPb_Protocal);
 	TcpServer(Config *config, \
     std::weak_ptr<CoroutinePool>, \
-    std::weak_ptr<FdEventContainer>);
+    std::weak_ptr<FdEventContainer>, \
+    std::weak_ptr<CoroutineTaskQueue>);
 
   ~TcpServer();
 
-  void start(std::weak_ptr<CoroutineTaskQueue>);
+  void start();
 
   void addCoroutine(tinyrpc::Coroutine::ptr cor);
 
@@ -75,6 +76,8 @@ class TcpServer {
   TcpConnection::ptr addClient(IOThread* io_thread, int fd);
 
   void freshTcpConnection(TcpTimeWheel::TcpConnectionSlot::ptr slot);
+
+  IOThreadPool::ptr getSharedIOThreadPool() {return m_io_pool;}
 
 
  public:

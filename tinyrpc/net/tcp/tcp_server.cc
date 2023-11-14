@@ -128,12 +128,14 @@ int TcpAcceptor::toAccept() {
 
 // TcpServer::TcpServer(NetAddress::ptr addr, ProtocalType type /*= TinyPb_Protocal*/) : m_addr(addr) {
 TcpServer::TcpServer(Config *config, std::weak_ptr<CoroutinePool> corPool, \
-		std::weak_ptr<FdEventContainer> fdEventPool)
+		std::weak_ptr<FdEventContainer> fdEventPool, \
+		std::weak_ptr<CoroutineTaskQueue> corTaskQueue)
 	 	: m_addr(config->addr), \
 		weakCorPool_(corPool), \
 		weakFdEventPool_(fdEventPool) {
 
 	m_io_pool = std::make_shared<IOThreadPool>(config->m_iothread_num, weakCorPool_);
+	m_io_pool->beginThreadPool(corTaskQueue);
 	m_protocal_type = config->protocal;
 	if (config->protocal == ProtocalType::Http_Protocal) {
 		m_dispatcher = std::make_shared<HttpDispacther>();
@@ -157,9 +159,8 @@ TcpServer::TcpServer(Config *config, std::weak_ptr<CoroutinePool> corPool, \
 	RpcInfoLog << "TcpServer setup on [" << m_addr->toString() << "]";
 }
 
-void TcpServer::start(std::weak_ptr<CoroutineTaskQueue> corTaskQueue) {
+void TcpServer::start() {
 
-  m_io_pool->beginThreadPool(corTaskQueue);
 	m_acceptor.reset(new TcpAcceptor(m_addr, weakFdEventPool_));
   m_acceptor->init();
 	// 得到当前coroutine，并且设置回调函数

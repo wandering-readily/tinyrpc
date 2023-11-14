@@ -86,7 +86,9 @@ class BlockCallHttpServlet : public tinyrpc::HttpServlet {
 
 class NonBlockCallHttpServlet: public tinyrpc::AsyncHttpServlet{
  public:
-  NonBlockCallHttpServlet(std::weak_ptr<tinyrpc::CoroutinePool> corPool) : AsyncHttpServlet(corPool){}
+  NonBlockCallHttpServlet(std::weak_ptr<tinyrpc::CoroutinePool> corPool, \
+    std::weak_ptr<tinyrpc::IOThreadPool> threadPool) \
+    : AsyncHttpServlet(corPool, threadPool){}
   ~NonBlockCallHttpServlet() = default;
 
   void handle(tinyrpc::HttpRequest* req, tinyrpc::HttpResponse* res) {
@@ -98,7 +100,6 @@ class NonBlockCallHttpServlet: public tinyrpc::AsyncHttpServlet{
     std::shared_ptr<queryAgeReq> rpc_req = std::make_shared<queryAgeReq>();
     std::shared_ptr<queryAgeRes> rpc_res = std::make_shared<queryAgeRes>();
     AppDebugLog("now to call QueryServer TinyRPC server to query who's id is %s", req->m_query_maps["id"].c_str());
-    rpc_req->set_id(std::atoi(req->m_query_maps["id"].c_str()));
     {
       auto &requery_map = req->m_query_maps;
       if (requery_map.find("req_no") != requery_map.end()) {
@@ -124,7 +125,13 @@ class NonBlockCallHttpServlet: public tinyrpc::AsyncHttpServlet{
     };
 
     std::shared_ptr<tinyrpc::TinyPbRpcClosure> closure = std::make_shared<tinyrpc::TinyPbRpcClosure>(cb); 
-    async_channel->saveCallee(rpc_controller, rpc_req, rpc_res, closure, getWeakPointoroutinePool());
+    std::shared_ptr<tinyrpc::IOThreadPool> threadPool = this->getweakIOThreadPool().lock();
+    if (!threadPool) [[unlikely]] 
+    {
+      tinyrpc::Exit(0);
+    }
+    async_channel->saveCallee(rpc_controller, rpc_req, rpc_res, closure, \
+      getWeakCoroutinePool(), threadPool->getRandomThread(false).get());
 
     QueryService_Stub stub(async_channel.get());
 

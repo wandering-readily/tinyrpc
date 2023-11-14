@@ -8,6 +8,7 @@
 namespace tinyrpc {
 
 class CoroutinePool;
+class IOThreadPool;
 
 class HttpServlet : public std::enable_shared_from_this<HttpServlet> {
  public:
@@ -51,12 +52,18 @@ class NotFoundHttpServlet: public HttpServlet {
 class AsyncHttpServlet : public HttpServlet {
  public:
 
-  AsyncHttpServlet(std::weak_ptr<CoroutinePool> corPool) : weakCorPool_(corPool) {}
+  AsyncHttpServlet(std::weak_ptr<CoroutinePool> corPool, \
+    std::weak_ptr<IOThreadPool> threadPool) \
+    : weakCorPool_(corPool), 
+    weakIOThreadPool_(threadPool) {}
 
-  std::weak_ptr<CoroutinePool> getWeakPointoroutinePool() {return weakCorPool_;}
+  std::weak_ptr<CoroutinePool> getWeakCoroutinePool() {return weakCorPool_;}
+  std::weak_ptr<IOThreadPool> getweakIOThreadPool() {return weakIOThreadPool_;}
 
 private:
   std::weak_ptr<CoroutinePool> weakCorPool_;
+
+  std::weak_ptr<IOThreadPool> weakIOThreadPool_;
 
 };
 

@@ -21,7 +21,7 @@ static thread_local Reactor* t_reactor_ptr = nullptr;
 static thread_local IOThread* t_cur_io_thread = nullptr;
 
 
-IOThread::IOThread(std::weak_ptr<CoroutineTaskQueue> corTaskQueue) \
+IOThread::IOThread(std::weak_ptr<CoroutineTaskQueue> corTaskQueue)
     : weakCorTaskQueue_(corTaskQueue) {
 
   int rt = sem_init(&m_init_semaphore, 0, 0);
@@ -161,11 +161,9 @@ void IOThreadPool::addTaskByIndex(int index, std::function<void()> cb) {
   }
 }
 
-// 添加Coroutine
-void IOThreadPool::addCoroutineToRandomThread(Coroutine::ptr cor, bool self /* = false*/) {
+tinyrpc::IOThread::ptr IOThreadPool::getRandomThread(bool self /* = false*/) {
   if (m_size == 1) {
-    m_io_threads[0]->getReactor()->addCoroutine(cor, true);
-    return;
+    return m_io_threads[0];
   }
   srand(time(0));
   int i = 0;
@@ -179,13 +177,18 @@ void IOThreadPool::addCoroutineToRandomThread(Coroutine::ptr cor, bool self /* =
     }
     break;
   }
-  m_io_threads[i]->getReactor()->addCoroutine(cor, true);
-  // if (m_io_threads[m_index]->getPthreadId() == t_cur_io_thread->getPthreadId()) {
-  //   m_index++;
-  //   if (m_index == m_size || m_index == -1) {
-  //     m_index = 0;
-  //   }
-  // }
+  return m_io_threads[i];
+}
+
+// 添加Coroutine
+void IOThreadPool::addCoroutineToRandomThread(Coroutine::ptr cor, bool self /* = false*/) {
+  if (m_size == 1) {
+    m_io_threads[0]->getReactor()->addCoroutine(cor, true);
+    return;
+  }
+  srand(time(0));
+  tinyrpc::IOThread::ptr thread = getRandomThread(self);
+  thread->getReactor()->addCoroutine(cor, true);
 }
 
 

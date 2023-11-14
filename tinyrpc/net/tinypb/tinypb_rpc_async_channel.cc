@@ -27,6 +27,12 @@ TinyPbRpcAsyncChannel::TinyPbRpcAsyncChannel(NetAddress::ptr addr) {
   m_rpc_channel = std::make_shared<TinyPbRpcChannel>(addr);
   m_current_iothread = IOThread::GetCurrentIOThread();
   m_current_cor = Coroutine::GetCurrentCoroutine();
+
+  if (Coroutine::IsMainCoroutine()) {
+    mainCorSet = true;
+    int rt = sem_init(getMainCorSemaphorePtr(), 0, 0);
+    assert(rt==0);
+  }
 }
 
 TinyPbRpcAsyncChannel::~TinyPbRpcAsyncChannel() {
@@ -39,20 +45,30 @@ TinyPbRpcAsyncChannel::~TinyPbRpcAsyncChannel() {
     }
     corPool->returnCoroutine(m_pending_cor);
   }
+
+  if (mainCorSet) {
+    sem_destroy(&mainCor_semaphore);
+  }
 }
 
 TinyPbRpcChannel* TinyPbRpcAsyncChannel::getRpcChannel() {
   return m_rpc_channel.get();
 }
 
+/*
+ * 在 RPC 调用前必须调用 TinyPbRpcAsyncChannel::saveCallee(), 提前预留资源的引用计数
+ */
 void TinyPbRpcAsyncChannel::saveCallee(con_ptr controller, \
-    msg_ptr req, msg_ptr res, clo_ptr closure, std::weak_ptr<CoroutinePool> corPool) {
+    msg_ptr req, msg_ptr res, clo_ptr closure, \
+    std::weak_ptr<CoroutinePool> corPool, 
+    IOThread *thread) {
   m_controller = controller;
   m_req = req;
   m_res = res;
   m_closure = closure;
   m_is_pre_set = true;
   weakCorPool_ = corPool;
+  m_chosed_iothread = thread;
 }
 
 void TinyPbRpcAsyncChannel::CallMethod(const google::protobuf::MethodDescriptor* method, 
@@ -108,23 +124,29 @@ void TinyPbRpcAsyncChannel::CallMethod(const google::protobuf::MethodDescriptor*
     };
 
     // 本IO线程curIOThread承担还原callback任务
-    s_ptr->getIOThread()->getReactor()->addTask(call_back, true);
+    // 如果是client，在我们的设置中进程的主线程没有IOThread*, 
+    // 因此s_ptr->getIOThread()将会是nullptr
+    // 这样会引发错误
+    // 所以采用sem_t通知
+    if (s_ptr->isMainCorSet()) {
+      sem_post(s_ptr->getMainCorSemaphorePtr());
+    } else {
+      s_ptr->getIOThread()->getReactor()->addTask(call_back, true);
+    }
     s_ptr.reset();
   };
   // m_pending_cor是寻找的新coroutine(cb函数是cb)
   // 转换进去m_pending_cor 将作为cb放入任一线程(但是不能在本线程当中)
   // m_pending_cor = GetServer()->getIOThreadPool()->addCoroutineToRandomThread(cb, false);
 
-  // !!!
-  // 还要添加代码, reacotr
   std::shared_ptr<tinyrpc::CoroutinePool> corPool = weakCorPool_.lock();
-	if (!corPool) [[unlikely]]
-	{
-		Exit(0);
-	}
+  if (!corPool) [[unlikely]]
+  {
+    Exit(0);
+  }
   m_pending_cor = corPool->getCoroutineInstanse();
   m_pending_cor->setCallBack(cb);
-  m_current_iothread->getReactor()->addCoroutine(m_pending_cor, true);
+  m_chosed_iothread->getReactor()->addCoroutine(m_pending_cor, true);
 
 }
 
@@ -133,19 +155,29 @@ void TinyPbRpcAsyncChannel::wait() {
   if (m_is_finished) {
     return;
   }
-  Coroutine::Yield();
+  if (isMainCorSet()) {
+    sem_wait(getMainCorSemaphorePtr());
+    if (getClosurePtr() != nullptr) {
+      RpcDebugLog << "async excute rpc call method back old thread";
+      getClosurePtr()->Run();
+    }
+  } else {
+    Coroutine::Yield();
+  }
+  m_is_finished = true;
 }
 
 void TinyPbRpcAsyncChannel::setFinished(bool value) {
   m_is_finished = true;
 }
 
-IOThread* TinyPbRpcAsyncChannel::getIOThread() {
-  return m_current_iothread;
-}
 
 Coroutine* TinyPbRpcAsyncChannel::getCurrentCoroutine() {
   return m_current_cor;
+}
+
+IOThread* TinyPbRpcAsyncChannel::getIOThread() {
+  return m_current_iothread;
 }
 
 bool TinyPbRpcAsyncChannel::getNeedResume() {

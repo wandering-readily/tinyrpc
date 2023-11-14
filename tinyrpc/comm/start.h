@@ -35,7 +35,8 @@ public:
   void RegisterHttpServlet(const std::string &url_path) {
     if constexpr (std::is_base_of_v<AsyncHttpServlet, T>) {
       if(!gRpcServer_->registerHttpServlet(url_path, 
-          std::make_shared<T>(std::weak_ptr<CoroutinePool> (corPool_)))) {
+          std::make_shared<T>(std::weak_ptr<CoroutinePool> (corPool_), \
+          std::weak_ptr<IOThreadPool> (gRpcServer_->getSharedIOThreadPool())))) {
         printf("Start TinyRPC server error, because register http servelt error, \
           please look up rpc log get more details!\n"); \
         tinyrpc::Exit(0);
@@ -73,7 +74,6 @@ private:
   void InitConfig();
   void InitLogger(std::shared_ptr<Logger> &);
   void InitServer();
-  void addReactorPerThread();
 
 
 private:
@@ -85,7 +85,7 @@ private:
 
   std::shared_ptr<CoroutinePool> corPool_;
   std::shared_ptr<FdEventContainer> fdEventPool_;
-  std::shared_ptr<CoroutineTaskQueue> couroutine_task_queue_;
+  std::shared_ptr<CoroutineTaskQueue> coroutine_task_queue_;
 
   TcpServer::ptr gRpcServer_;
 };

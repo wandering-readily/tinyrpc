@@ -8,7 +8,6 @@
 #include <any>
 #include "tinyrpc/net/net_address.h"
 #include "tinyrpc/net/tinypb/tinypb_rpc_channel.h"
-#include "tinyrpc/net/tinypb/tinypb_rpc_async_channel.h"
 
 
 namespace details {
@@ -31,18 +30,20 @@ namespace details {
 
 namespace tinyrpc {
 
+struct UnixDomainAddressFlag {};
+
 template <typename T, 
     typename=std::enable_if_t<std::is_same_v<IPAddress, T> || std::is_same_v<UnixDomainAddress, T>>>
     // requires (std::is_same_v<IPAddress, T> || std::is_same_v<UnixDomainAddress, T>)
-class TinyrpcClient final {
+class TinyrpcClient {
 
 public:
 
   // requires (std::is_same_v<IPAddress, T>)
-  TinyrpcClient(const std::string& ip, uint16_t port) \
+  TinyrpcClient(std::string ip, uint16_t port) \
     : addr_(std::make_shared<T> (ip, port)) {}
 
-  TinyrpcClient(const std::string& addr) \
+  TinyrpcClient(std::string addr) \
     : addr_(std::make_shared<T> (addr)) {}
 
   TinyrpcClient(uint16_t port) \
@@ -51,10 +52,10 @@ public:
   TinyrpcClient(sockaddr_in addr) \
     : addr_(std::make_shared<T> (addr)) {}
 
-  TinyrpcClient(std::string& path) \
+  TinyrpcClient(std::string path, UnixDomainAddressFlag dummy) \
     : addr_(std::make_shared<T> (path)) {}
 
-	TinyrpcClient(sockaddr_un addr) \
+	TinyrpcClient(sockaddr_un addr, UnixDomainAddressFlag dummy) \
     : addr_(std::make_shared<T> (addr)) {}
 
 
@@ -72,7 +73,6 @@ public:
 
     tinyrpc::TinyPbRpcChannel channel(addr_);
     auto stub = std::make_unique<details::has_Stub_t<S>> (&channel);
-    // typename S::Stub stub(&channel);
 
     TinyPbRpcController rpc_controller;
     rpc_controller.SetTimeout(timeout_);
@@ -87,7 +87,7 @@ public:
     return rpc_controller.ErrorCode();
   }
 
-private:
+ protected:
   tinyrpc::NetAddress::ptr addr_;
   int timeout_ = 5000;
 };

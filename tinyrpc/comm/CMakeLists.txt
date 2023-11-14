@@ -10,6 +10,8 @@ set(HEADERS
     thread_pool.h
 
     client.hpp
+    asyncCorClient.hpp
+    asyncFutureClient.hpp
 )
 
 install(FILES ${HEADERS} DESTINATION include/tinyrpc/comm)

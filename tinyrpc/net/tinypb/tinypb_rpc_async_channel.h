@@ -2,7 +2,6 @@
 #define TINYRPC_NET_TINYPB_TINYPB_RPC_ASYNC_CHANNEL_H 
 
 #include <google/protobuf/service.h>
-#include <future>
 #include "tinyrpc/net/tinypb/tinypb_data.h"
 #include "tinyrpc/net/tinypb/tinypb_rpc_channel.h"
 #include "tinyrpc/net/tinypb/tinypb_rpc_controller.h"
@@ -12,7 +11,18 @@
 
 namespace tinyrpc {
 
-class TinyPbRpcAsyncChannel : public google::protobuf::RpcChannel , public std::enable_shared_from_this<TinyPbRpcAsyncChannel> {
+class AsyncCor_Waiter {
+ public:
+
+  virtual void wait() = 0;
+  
+  virtual ~AsyncCor_Waiter() = default;
+};
+
+class TinyPbRpcAsyncChannel \
+    : public google::protobuf::RpcChannel, 
+    public std::enable_shared_from_this<TinyPbRpcAsyncChannel>, 
+    public AsyncCor_Waiter {
 
  public:
   typedef std::shared_ptr<TinyPbRpcAsyncChannel> ptr;
@@ -35,9 +45,9 @@ class TinyPbRpcAsyncChannel : public google::protobuf::RpcChannel , public std::
   // must call saveCallee before CallMethod
   // in order to save shared_ptr count of req res controller
   void saveCallee(con_ptr controller, msg_ptr req, msg_ptr res, clo_ptr closure, \
-    std::weak_ptr<CoroutinePool>);
+    std::weak_ptr<CoroutinePool>, IOThread *);
 
-  void wait();
+  virtual void wait();
 
   void setFinished(bool value);
 
@@ -46,6 +56,10 @@ class TinyPbRpcAsyncChannel : public google::protobuf::RpcChannel , public std::
   IOThread* getIOThread();
 
   Coroutine* getCurrentCoroutine();
+
+  sem_t *getMainCorSemaphorePtr() {return &mainCor_semaphore;}
+
+  bool isMainCorSet() {return mainCorSet;}
 
   google::protobuf::RpcController* getControllerPtr();
 
@@ -61,8 +75,11 @@ class TinyPbRpcAsyncChannel : public google::protobuf::RpcChannel , public std::
   Coroutine::ptr m_pending_cor;
   Coroutine* m_current_cor {NULL};
   IOThread* m_current_iothread {NULL};
-  bool m_is_finished {false};
-  bool m_need_resume {false};
+  IOThread* m_chosed_iothread {NULL};
+  // 不同的线程读写m_is_finished, m_need_resume
+  // 所以改为std::atomic_bool
+  std::atomic_bool m_is_finished {false};
+  std::atomic_bool m_need_resume {false};
   bool m_is_pre_set {false};
 
  private:
@@ -73,6 +90,8 @@ class TinyPbRpcAsyncChannel : public google::protobuf::RpcChannel , public std::
 
   std::weak_ptr<CoroutinePool> weakCorPool_;
 
+  bool mainCorSet = false;
+  sem_t mainCor_semaphore;
 };
 
 }

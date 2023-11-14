@@ -31,7 +31,7 @@ void TinyrpcServer::InitServiceConfig() {
   corPool_ = std::make_shared<CoroutinePool>(
       gRpcConfig_->m_cor_pool_size, gRpcConfig_->m_cor_stack_size);
   fdEventPool_ = std::make_shared<FdEventContainer>(1000);
-  couroutine_task_queue_ = std::make_shared<CoroutineTaskQueue>();
+  coroutine_task_queue_ = std::make_shared<CoroutineTaskQueue>();
 
   InitLogger(gRpcLogger);
   InitServer();
@@ -39,7 +39,7 @@ void TinyrpcServer::InitServiceConfig() {
 }
 
 void TinyrpcServer::StartRpcServer() {
-  gRpcServer_->start(couroutine_task_queue_);
+  gRpcServer_->start();
 }
 
 TcpServer::ptr TinyrpcServer::GetServer() {
@@ -82,7 +82,8 @@ void TinyrpcServer::InitLogger(std::shared_ptr<Logger> &logger) {
                     gRpcConfig_->m_log_max_size, gRpcConfig_->m_log_sync_inteval);
 };
 void TinyrpcServer::InitServer() {
-  gRpcServer_ = std::make_shared<TcpServer>(gRpcConfig_.get(), corPool_, fdEventPool_);
+  gRpcServer_ = std::make_shared<TcpServer>(gRpcConfig_.get(), \
+    corPool_, fdEventPool_, coroutine_task_queue_);
 }
 
 

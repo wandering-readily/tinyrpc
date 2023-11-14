@@ -39,7 +39,7 @@ class IOThread {
   int getThreadIndex();
 
   sem_t* getStartSemaphore();
-  
+
 
  public:
   static IOThread* GetCurrentIOThread();
@@ -63,7 +63,7 @@ private:
 
 };
 
-class IOThreadPool {
+class IOThreadPool : public std::enable_shared_from_this<IOThreadPool> {
 
  public:
   typedef std::shared_ptr<IOThreadPool> ptr;
@@ -88,6 +88,7 @@ class IOThreadPool {
   // self = false, means random thread cann't be current thread
   // please free cor, or causes memory leak
   // call returnCoroutine(cor) to free coroutine
+  tinyrpc::IOThread::ptr getRandomThread(bool);
   Coroutine::ptr addCoroutineToRandomThread(std::function<void()> cb, bool self = false);
 
   Coroutine::ptr addCoroutineToThreadByIndex(int index, std::function<void()> cb, bool self = false);
