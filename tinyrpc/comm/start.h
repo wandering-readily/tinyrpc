@@ -67,8 +67,6 @@ public:
 
   void StartRpcServer();
 
-  void AddTimerEvent(TimerEvent::ptr);
-
 private:
   void InitServiceConfig();
   void InitConfig();

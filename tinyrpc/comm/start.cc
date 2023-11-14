@@ -87,6 +87,4 @@ void TinyrpcServer::InitServer() {
 }
 
 
-void TinyrpcServer::AddTimerEvent(TimerEvent::ptr event) {}
-
 } // namespace tinyrpc
