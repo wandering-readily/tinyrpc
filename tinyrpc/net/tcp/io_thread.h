@@ -48,15 +48,16 @@ class IOThread {
  	static void* main(void* arg);
 
  private:
+
+  sem_t m_init_semaphore;
+  sem_t m_start_semaphore;
+
  	Reactor* m_reactor {nullptr};
 	pthread_t m_thread {0};
 	pid_t m_tid {-1};
   TimerEvent::ptr m_timer_event {nullptr};
   int m_index {-1};
 
-  sem_t m_init_semaphore;
-
-  sem_t m_start_semaphore;
 
 private:
   std::weak_ptr<CoroutineTaskQueue> weakCorTaskQueue_;
@@ -69,6 +70,7 @@ class IOThreadPool : public std::enable_shared_from_this<IOThreadPool> {
   typedef std::shared_ptr<IOThreadPool> ptr;
 
   IOThreadPool(int size, std::weak_ptr<CoroutinePool>);
+  ~IOThreadPool() = default;
 
   void beginThreadPool(std::weak_ptr<CoroutineTaskQueue>);
 

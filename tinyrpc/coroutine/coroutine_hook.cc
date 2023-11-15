@@ -34,7 +34,7 @@ HOOK_SYS_FUNC(sleep);
 
 namespace tinyrpc {
 
-static std::atomic_int m_max_connect_timeout = 75;
+static int m_max_connect_timeout = 75;
 static std::atomic_bool m_max_connect_timeout_inited = false;
 bool Init_m_max_connect_timeout(int max_connect_timeout) {
   if (!m_max_connect_timeout_inited) {

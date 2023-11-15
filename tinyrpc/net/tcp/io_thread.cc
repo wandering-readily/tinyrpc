@@ -38,11 +38,14 @@ IOThread::IOThread(std::weak_ptr<CoroutineTaskQueue> corTaskQueue)
   assert(rt == 0);
   RpcDebugLog << "semaphore wait end, finish create io thread";
 
-  sem_destroy(&m_init_semaphore);
 }
 
 IOThread::~IOThread() {
   m_reactor->stop();
+
+  sem_destroy(&m_init_semaphore);
+  sem_destroy(&m_start_semaphore);
+
   pthread_join(m_thread, nullptr);
 
   if (m_reactor != nullptr) {
@@ -102,8 +105,6 @@ void* IOThread::main(void* arg) {
   // wait for main thread post m_start_semaphore to start iothread loop
   // 等待IOThreadPool释放信息 ThreadPool().start()
   sem_wait(&thread->m_start_semaphore);
-
-  sem_destroy(&thread->m_start_semaphore);
 
   RpcDebugLog << "IOThread " << thread->m_tid << " begin to loop";
   // !!!

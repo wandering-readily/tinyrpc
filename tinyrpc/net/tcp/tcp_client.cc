@@ -29,7 +29,6 @@ TcpClient::TcpClient(NetAddress::ptr addr, ProtocalType type) \
   RpcDebugLog << "TcpClient() create fd = " << m_fd;
   m_local_addr = std::make_shared<tinyrpc::IPAddress>("127.0.0.1", 0);
 
-  lightTimerPool_ = std::make_shared<LightTimerPool> ();
   // m_reactor = Reactor::GetReactor();
 
   if (type == ProtocalType::Http_Protocal) {
@@ -44,6 +43,7 @@ TcpClient::TcpClient(NetAddress::ptr addr, ProtocalType type) \
   m_connection = std::make_shared<TcpConnection>(this->m_codec, nullptr, \
     m_fd, 128, m_peer_addr, fdEventPool_);
 
+  lightTimerPool_ = std::make_shared<LightTimerPool> ();
 }
 
 TcpClient::~TcpClient() {

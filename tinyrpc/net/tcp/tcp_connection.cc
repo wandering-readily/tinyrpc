@@ -443,7 +443,8 @@ Coroutine::ptr TcpConnection::getCoroutine() {
 
 
 void TcpConnection::resetServerCloseConnTime() {
-  serverCloseConnTime_ = details::getNowMs() + m_tcp_svr->getConnectAliveTime();
+  int64_t tmp = details::getNowMs() + m_tcp_svr->getConnectAliveTime();
+  serverCloseConnTime_ = tmp;
 }
 
 
