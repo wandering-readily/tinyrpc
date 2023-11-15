@@ -1,38 +1,40 @@
-#ifndef TINYRPC_NET_TCP_TCP_CLIENT_H
-#define TINYRPC_NET_TCP_TCP_CLIENT_H
+#ifndef TINYRPC_NET_RPC_TCP_CLIENT_H
+#define TINYRPC_NET_RPC_TCP_CLIENT_H
 
 #include <memory>
 #include <google/protobuf/service.h>
 #include "tinyrpc/coroutine/coroutine.h"
 #include "tinyrpc/coroutine/coroutine_hook.h"
 #include "tinyrpc/net/net_address.h"
-// #include "tinyrpc/net/reactor.h"
+#include "tinyrpc/net/reactor.h"
 #include "tinyrpc/net/tcp/tcp_connection.h"
 #include "tinyrpc/net/abstract_codec.h"
 
 namespace tinyrpc {
 
-class LightTimerPool;
 
 //
 // You should use TcpClient in a coroutine(not main coroutine)
 //
-class TcpClient {
+class RpcClient {
  public:
   typedef std::shared_ptr<TcpClient> ptr;
 
-  TcpClient(NetAddress::ptr addr, \
-    ProtocalType type = tinyrpc::ProtocalType::TinyPb_Protocal);
+  RpcClient(ProtocalType type = tinyrpc::ProtocalType::TinyPb_Protocal);
 
-  ~TcpClient();
+  ~RpcClient();
 
-  void resetFd();
+  bool connect(NetAddress::ptr);
+
+  int resetFd(int);
 
   int sendAndRecvTinyPb(const std::string& msg_no, TinyPbStruct::pb_ptr& res);
 
-  void stop();
+  TcpConnection* getConnection(NetAddress::ptr);
+  TcpConnection* getConnection(const std::string &);
 
-  TcpConnection* getConnection();
+  int sendAndRecvTinyPb(NetAddress::ptr, \
+    const std::string&, TinyPbStruct::pb_ptr&);
 
   void setTimeout(const int v) {
     m_max_timeout = v;
@@ -46,40 +48,32 @@ class TcpClient {
     return m_err_info;
   }
 
-  NetAddress::ptr getPeerAddr() const {
-    return m_peer_addr;
-  }
-
   NetAddress::ptr getLocalAddr() const {
-    return m_local_addr;
+    return local_addr_;
   }
 
   AbstractCodeC::ptr getCodeC() {
-    return m_codec;
+    return codec_;
   }
 
 
  private:
 
-  int m_family {0};
-  int m_fd {-1};
   int m_try_counts {3};         // max try reconnect times
   int m_max_timeout {10000};       // max connect timeout, ms
   bool m_is_stop {false};
   std::string m_err_info;      // error info of client
 
-  NetAddress::ptr m_local_addr {nullptr};
-  NetAddress::ptr m_peer_addr {nullptr};
-  // Reactor* m_reactor {nullptr};
-  TcpConnection::ptr m_connection {nullptr};
+  NetAddress::ptr local_addr_ {nullptr};
+  Reactor* reactor_ {nullptr};
 
-  AbstractCodeC::ptr m_codec {nullptr};
+  // peer_addr --> connection
+  std::map<std::string, TcpConnection::ptr> connections_;
 
-  bool m_connect_succ {false};
-  
+  AbstractCodeC::ptr codec_ {nullptr};
+
   std::shared_ptr<FdEventContainer> fdEventPool_;
 
-  std::shared_ptr<LightTimerPool> lightTimerPool_;
 }; 
 
 }

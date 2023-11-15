@@ -145,6 +145,7 @@ TcpServer::TcpServer(Config *config, std::weak_ptr<CoroutinePool> corPool, \
 		m_codec = std::make_shared<TinyPbCodeC>();
 	}
 
+	// m_main_reactor这样设立，当前进程的主线程是没有t_reacrtor_ptr这个指针的
 	m_main_reactor = tinyrpc::Reactor::GetReactor();
 	m_main_reactor->setReactorType(ReactorType::MainReactor);
 

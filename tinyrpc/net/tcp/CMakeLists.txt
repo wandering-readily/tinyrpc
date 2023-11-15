@@ -6,6 +6,9 @@ set(HEADERS
     tcp_connection.h
     tcp_buffer.h     
     tcp_connection_time_wheel.h
+
+    rpc_client.h
+    light_timer.h
 )
 
 install(FILES ${HEADERS} DESTINATION include/tinyrpc/net/tcp)

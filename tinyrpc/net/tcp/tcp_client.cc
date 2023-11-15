@@ -1,3 +1,5 @@
+#include <sys/timerfd.h>
+#include <sys/eventfd.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include "tinyrpc/comm/log.h"
@@ -12,6 +14,8 @@
 #include "tinyrpc/net/http/http_codec.h"
 #include "tinyrpc/net/tinypb/tinypb_codec.h"
 
+#include "light_timer.h"
+
 namespace tinyrpc {
 
 TcpClient::TcpClient(NetAddress::ptr addr, ProtocalType type) \
@@ -24,7 +28,9 @@ TcpClient::TcpClient(NetAddress::ptr addr, ProtocalType type) \
   }
   RpcDebugLog << "TcpClient() create fd = " << m_fd;
   m_local_addr = std::make_shared<tinyrpc::IPAddress>("127.0.0.1", 0);
-  m_reactor = Reactor::GetReactor();
+
+  lightTimerPool_ = std::make_shared<LightTimerPool> ();
+  // m_reactor = Reactor::GetReactor();
 
   if (type == ProtocalType::Http_Protocal) {
 		m_codec = std::make_shared<HttpCodeC>();
@@ -33,7 +39,9 @@ TcpClient::TcpClient(NetAddress::ptr addr, ProtocalType type) \
 	}
 
   // 根据本地FD，创建连接
-  m_connection = std::make_shared<TcpConnection>(this, m_reactor, \
+  // m_connection = std::make_shared<TcpConnection>(this->m_codec, m_reactor,
+    // m_fd, 128, m_peer_addr, fdEventPool_);
+  m_connection = std::make_shared<TcpConnection>(this->m_codec, nullptr, \
     m_fd, 128, m_peer_addr, fdEventPool_);
 
 }
@@ -48,7 +56,9 @@ TcpClient::~TcpClient() {
 
 TcpConnection* TcpClient::getConnection() {
   if (!m_connection.get()) {
-    m_connection = std::make_shared<TcpConnection>(this, m_reactor, \
+    // m_connection = std::make_shared<TcpConnection>(this->m_codec, m_reactor,
+      // m_fd, 128, m_peer_addr, fdEventPool_);
+    m_connection = std::make_shared<TcpConnection>(this->m_codec, nullptr, \
       m_fd, 128, m_peer_addr, fdEventPool_);
   }
   return m_connection.get();
@@ -68,25 +78,35 @@ void TcpClient::resetFd() {
 int TcpClient::sendAndRecvTinyPb(const std::string& msg_no, TinyPbStruct::pb_ptr& res) {
   // 设置定时timeout
   bool is_timeout = false;
-  tinyrpc::Coroutine* cur_cor = tinyrpc::Coroutine::GetCurrentCoroutine();
+  // tinyrpc::Coroutine* cur_cor = tinyrpc::Coroutine::GetCurrentCoroutine();
   // 1. 
   // timercb将在调用时恢复当前环境
   // 此时timeout，设置m_is_over_time=true
   // 这样就会打断client等待服务器回复的循环
-  auto timer_cb = [this, &is_timeout, cur_cor]() {
+  // auto timer_cb = [this, &is_timeout, cur_cor]() {
+    // RpcInfoLog << "TcpClient timer out event occur";
+    // // is_timeout设置，且m_connection也设置超时
+    // is_timeout = true;
+    // this->m_connection->setOverTimeFlag(true); 
+    // tinyrpc::Coroutine::Resume(cur_cor);
+  // };
+
+  auto timer_cb = [this, &is_timeout]() {
     RpcInfoLog << "TcpClient timer out event occur";
     // is_timeout设置，且m_connection也设置超时
     is_timeout = true;
     this->m_connection->setOverTimeFlag(true); 
-    tinyrpc::Coroutine::Resume(cur_cor);
   };
+
   // 将超时恢复环境任务存放在m_reactor->getTimer()
   // ???
   // 是否应该增加超时重连机制?
-  TimerEvent::ptr event = std::make_shared<TimerEvent>(m_max_timeout, false, timer_cb);
-  m_reactor->getTimer()->addTimerEvent(event);
+  // TimerEvent::ptr event = std::make_shared<TimerEvent>(m_max_timeout, false, timer_cb);
+  // m_reactor->getTimer()->addTimerEvent(event);
+  auto timer = std::make_shared<LightTimer> (m_max_timeout, timer_cb, lightTimerPool_);
+  timer->registerInLoop();
 
-  RpcDebugLog << "add rpc timer event, timeout on " << event->m_arrive_time;
+  // RpcDebugLog << "add rpc timer event, timeout on " << event->m_arrive_time;
 
   while (!is_timeout) {
     RpcDebugLog << "begin to connect";
@@ -115,7 +135,7 @@ int TcpClient::sendAndRecvTinyPb(const std::string& msg_no, TinyPbStruct::pb_ptr
         m_err_info = ss.str();
         RpcErrorLog << "cancle overtime event, err info=" << m_err_info;
         // 删除之前的定时事件
-        m_reactor->getTimer()->delTimerEvent(event);
+        // m_reactor->getTimer()->delTimerEvent(event);
         return ERROR_PEER_CLOSED;
       }
       if (errno == EAFNOSUPPORT) {
@@ -124,7 +144,7 @@ int TcpClient::sendAndRecvTinyPb(const std::string& msg_no, TinyPbStruct::pb_ptr
         ss << "connect cur sys ror, errinfo is " << std::string(strerror(errno)) <<  " ] closed.";
         m_err_info = ss.str();
         RpcErrorLog << "cancle overtime event, err info=" << m_err_info;
-        m_reactor->getTimer()->delTimerEvent(event);
+        // m_reactor->getTimer()->delTimerEvent(event);
         return ERROR_CONNECT_SYS_ERR;
 
       } 
@@ -137,7 +157,7 @@ int TcpClient::sendAndRecvTinyPb(const std::string& msg_no, TinyPbStruct::pb_ptr
     std::stringstream ss;
     ss << "connect peer addr[" << m_peer_addr->toString() << "] error. sys error=" << strerror(errno);
     m_err_info = ss.str();
-    m_reactor->getTimer()->delTimerEvent(event);
+    // m_reactor->getTimer()->delTimerEvent(event);
     return ERROR_FAILED_CONNECT;
   }
 
@@ -171,7 +191,7 @@ int TcpClient::sendAndRecvTinyPb(const std::string& msg_no, TinyPbStruct::pb_ptr
 
   }
 
-  m_reactor->getTimer()->delTimerEvent(event);
+  // m_reactor->getTimer()->delTimerEvent(event);
   m_err_info = "";
   return 0;
 
@@ -198,7 +218,7 @@ err_deal:
 void TcpClient::stop() {
   if (!m_is_stop) {
     m_is_stop = true;
-    m_reactor->stop();
+    // m_reactor->stop();
   }
 }
 

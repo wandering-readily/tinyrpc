@@ -40,7 +40,8 @@ class TcpConnection : public std::enable_shared_from_this<TcpConnection> {
     int fd, int buff_size, NetAddress::ptr peer_addr, \
     std::weak_ptr<CoroutinePool>, std::weak_ptr<FdEventContainer>);
 
-	TcpConnection(tinyrpc::TcpClient* tcp_cli, tinyrpc::Reactor* reactor, \
+	// TcpConnection(tinyrpc::TcpClient* tcp_cli, tinyrpc::Reactor* reactor, 
+	TcpConnection( AbstractCodeC::ptr codec, tinyrpc::Reactor* reactor, \
     int fd, int buff_size, NetAddress::ptr peer_addr, \
     std::weak_ptr<FdEventContainer>);
 
@@ -95,12 +96,19 @@ class TcpConnection : public std::enable_shared_from_this<TcpConnection> {
 
   void initServer();
 
+  int getFd() const {return m_fd;}
+
+  void setFd(int fd) {m_fd = fd;}
+
  private:
   void clearClient();
 
  private:
   TcpServer* m_tcp_svr {nullptr};
-  TcpClient* m_tcp_cli {nullptr};
+  // 解耦TcpClient* 
+  // TCPClient 输入TCPClient*变成输入AbstractCodeC::ptr m_codec
+  // TcpClient* m_tcp_cli {nullptr};
+
   IOThread* m_io_thread {nullptr};
   Reactor* m_reactor {nullptr};
 

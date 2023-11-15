@@ -79,6 +79,8 @@ int IOThread::getThreadIndex() {
 void* IOThread::main(void* arg) {
   // assert(t_reactor_ptr == nullptr);
 
+  // !!!
+  // 这个步骤保证了IOThread的t_reactor_ptr 和 对应的reactor.cc的t_reactor_ptr相同
   t_reactor_ptr = new Reactor();
   assert(t_reactor_ptr != NULL);
 

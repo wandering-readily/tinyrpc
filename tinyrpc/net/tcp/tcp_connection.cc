@@ -54,7 +54,7 @@ TcpConnection::TcpConnection(tinyrpc::TcpServer* tcp_svr, tinyrpc::IOThread* io_
   RpcDebugLog << "succ create tcp connection[" << m_state << "], fd=" << fd;
 }
 
-TcpConnection::TcpConnection(tinyrpc::TcpClient* tcp_cli, tinyrpc::Reactor* reactor, \
+TcpConnection::TcpConnection(AbstractCodeC::ptr codec, tinyrpc::Reactor* reactor, \
     int fd, int buff_size, NetAddress::ptr peer_addr, \
     std::weak_ptr<FdEventContainer> fdEventPool)
     : m_fd(fd), m_state(NotConnected), \
@@ -64,9 +64,11 @@ TcpConnection::TcpConnection(tinyrpc::TcpClient* tcp_cli, tinyrpc::Reactor* reac
 
   m_reactor = reactor;
 
-  m_tcp_cli = tcp_cli;
+  // m_tcp_cli = tcp_cli;
 
-  m_codec = m_tcp_cli->getCodeC();
+  // m_codec = m_tcp_cli->getCodeC();
+
+  m_codec = codec;
 
   std::shared_ptr<tinyrpc::FdEventContainer> sharedFdEventPool = weakFdEventPool_.lock();
 	if (!sharedFdEventPool) [[unlikely]] 
@@ -100,12 +102,13 @@ void TcpConnection::registerToTimeWheel() {
     if (conn->getServerCloseConnTime() > now + 10) {
       // 这里已经没到断开连接时间，注定不会onn->m_weak_slot.lock()不会析构
       // 避免多道shutdown命令影响性能，同时确定mainReacotr的timeWheel还有没有连接
-      if (conn->m_weak_slot.lock().use_count() == 0) {
+      // m_weak_slot对应的shared_ptr
+      // if (conn->m_weak_slot.lock().use_count() == 0) {
         TcpTimeWheel::TcpConnectionSlot::ptr tmp = 
-          std::make_shared<AbstractSlot<TcpConnection>>(conn->shared_from_this(), cb);
+          std::make_shared<AbstractSlot<TcpConnection>>(conn, cb);
         conn->m_weak_slot = tmp;
         conn->m_tcp_svr->freshTcpConnection(tmp);
-      }
+      // }
       
     } else {
       conn->shutdownConnection();
@@ -210,6 +213,8 @@ void TcpConnection::input() {
     // server接收到FIN, read() ==> 0, server关闭连接
     // 这样就避免直接close, 有些数据没有及时读取和发送
     if (rt <= 0) {
+      // ???
+      // 系统资源不够，或者有资源没回收
       RpcDebugLog << "rt < 0";
       RpcErrorLog << "read empty while occur read event, because of peer close, fd= " << m_fd << ", sys error=" << strerror(errno) << ", now to clear tcp connection";
       // this cor can destroy
@@ -250,10 +255,10 @@ void TcpConnection::input() {
   RpcInfoLog << "recv [" << count << "] bytes data from [" << m_peer_addr->toString() << "], fd [" << m_fd << "]";
   if (m_connection_type == ConnectionType::ServerConnection) {
     this->resetServerCloseConnTime();
-    TcpTimeWheel::TcpConnectionSlot::ptr tmp = m_weak_slot.lock();
-    if (tmp) {
-      m_tcp_svr->freshTcpConnection(tmp);
-    }
+    // TcpTimeWheel::TcpConnectionSlot::ptr tmp = m_weak_slot.lock();
+    // if (tmp) {
+      // m_tcp_svr->freshTcpConnection(tmp);
+    // }
   }
 
 }

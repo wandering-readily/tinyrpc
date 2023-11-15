@@ -12,6 +12,9 @@
 
 namespace tinyrpc {
 
+// AsyncCor_TinyrpcClientWaiter 会持有AsyncChannel shared_ptr指针
+// AsyncChannel 会持有rpc_req prc_res shared_ptr指针
+// 最佳使用方法是 将AsyncCor_TinyrpcClientWaiter 放入局部作用域{}
 class AsyncCor_TinyrpcClientWaiter : public AsyncCor_Waiter {
 
 public:
@@ -124,6 +127,7 @@ public:
       S::descriptor()->FindMethodByName(method_name);
     stub->CallMethod(method, rpc_controller.get(), request.get(), response.get(), nullptr);
 
+    // 返回的async_channel会持有request, response 智能指针
     return std::make_unique<AsyncCor_TinyrpcClientWaiter> (async_channel);
   }
 

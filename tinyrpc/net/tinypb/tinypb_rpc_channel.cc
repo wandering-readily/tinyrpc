@@ -16,9 +16,7 @@
 
 namespace tinyrpc {
 
-TinyPbRpcChannel::TinyPbRpcChannel(NetAddress::ptr addr) : m_addr(addr) {
-
-}
+TinyPbRpcChannel::TinyPbRpcChannel(NetAddress::ptr addr) : m_addr(addr) {}
 
 void TinyPbRpcChannel::CallMethod(const google::protobuf::MethodDescriptor* method, 
     google::protobuf::RpcController* controller, 
@@ -108,4 +106,94 @@ void TinyPbRpcChannel::CallMethod(const google::protobuf::MethodDescriptor* meth
 }
 
 
+
+// 构造函数传入m_client的channel
+TinyPbRpcClientChannel::TinyPbRpcClientChannel(NetAddress::ptr addr, \
+  TcpClient::ptr client) : addr_(addr), client_(client) {}
+
+void TinyPbRpcClientChannel::CallMethod(const google::protobuf::MethodDescriptor* method, 
+    google::protobuf::RpcController* controller, 
+    const google::protobuf::Message* request, 
+    google::protobuf::Message* response, 
+    google::protobuf::Closure* done) {
+
+  TinyPbStruct pb_struct;
+  TinyPbRpcController* rpc_controller = dynamic_cast<TinyPbRpcController*>(controller);
+  if (!rpc_controller) {
+    RpcErrorLog << "call failed. falid to dynamic cast TinyPbRpcController";
+    return;
+  }
+
+  rpc_controller->SetLocalAddr(client_->getLocalAddr());
+  rpc_controller->SetPeerAddr(client_->getPeerAddr());
+  
+  pb_struct.service_full_name = method->full_name();
+  RpcDebugLog << "call service_name = " << pb_struct.service_full_name;
+  if (!request->SerializeToString(&(pb_struct.pb_data))) {
+    RpcErrorLog << "serialize send package error";
+    return;
+  }
+
+  if (!rpc_controller->MsgSeq().empty()) {
+    pb_struct.msg_req = rpc_controller->MsgSeq();
+  } else {
+    // get current coroutine's msgno to set this request
+    RunTime* run_time = getCurrentRunTime();
+    if(run_time != NULL && !run_time->m_msg_no.empty()) {
+      pb_struct.msg_req = run_time->m_msg_no;
+      RpcDebugLog << "get from RunTime succ, msgno = " << pb_struct.msg_req;
+    } else {
+      // 调用rpc_channel时，从这生成msg_req_no
+      pb_struct.msg_req = MsgReqUtil::genMsgNumber();
+      RpcDebugLog << "get from RunTime error, generate new msgno = " << pb_struct.msg_req;
+    }
+    rpc_controller->SetMsgReq(pb_struct.msg_req);
+  }
+
+  AbstractCodeC::ptr m_codec = client_->getConnection()->getCodec();
+  m_codec->encode(client_->getConnection()->getOutBuffer(), &pb_struct);
+  if (!pb_struct.encode_succ) {
+    rpc_controller->SetError(ERROR_FAILED_ENCODE, "encode tinypb data error");
+    return;
+  }
+
+  RpcInfoLog << "============================================================";
+  RpcInfoLog << pb_struct.msg_req << "|" << rpc_controller->PeerAddr()->toString() 
+      << "|. Set client send request data:" << request->ShortDebugString();
+  RpcInfoLog << "============================================================";
+  client_->setTimeout(rpc_controller->Timeout());
+
+  // !!!
+  // 关键函数，从pb_struct.msg_req序列中获得返回数据
+  TinyPbStruct::pb_ptr res_data;
+  int rt = client_->sendAndRecvTinyPb(pb_struct.msg_req, res_data);
+  if (rt != 0) {
+    rpc_controller->SetError(rt, client_->getErrInfo());
+    RpcErrorLog << pb_struct.msg_req << "|call rpc occur client error, service_full_name=" << pb_struct.service_full_name << ", error_code=" 
+        << rt << ", error_info = " << client_->getErrInfo();
+    return;
+  }
+
+  if (!response->ParseFromString(res_data->pb_data)) {
+    rpc_controller->SetError(ERROR_FAILED_DESERIALIZE, "failed to deserialize data from server");
+    RpcErrorLog << pb_struct.msg_req << "|failed to deserialize data";
+    return;
+  }
+  if (res_data->err_code != 0) {
+    RpcErrorLog << pb_struct.msg_req << "|server reply error_code=" << res_data->err_code << ", err_info=" << res_data->err_info;
+    rpc_controller->SetError(res_data->err_code, res_data->err_info);
+    return;
+  }
+
+  RpcInfoLog<< "============================================================";
+  RpcInfoLog<< pb_struct.msg_req << "|" << rpc_controller->PeerAddr()->toString()
+      << "|call rpc server [" << pb_struct.service_full_name << "] succ" 
+      << ". Get server reply response data:" << response->ShortDebugString();
+  RpcInfoLog<< "============================================================";
+
+  // excute callback function
+  if (done) {
+    done->Run();
+  }
+}
 }

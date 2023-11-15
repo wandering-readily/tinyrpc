@@ -40,7 +40,7 @@ int main(int argc, char* argv[]) {
 
   test_client();
 
-  // tinyrpc::TinyrpcClient<tinyrpc::IPAddress> client{ \
+  // tinyrpc::TinyrpcClient<tinyrpc::IPAddress> client{
       // std::string("127.0.0.1"), (uint16_t)20000};
   // queryAgeReq rpc_req;
   // queryAgeRes rpc_res;
@@ -52,8 +52,10 @@ int main(int argc, char* argv[]) {
   // auto rpc_res2 = std::make_shared<queryAgeRes>();
   // tinyrpc::AsyncCor_TinyrpcClient<tinyrpc::IPAddress> async_client(
     // std::string("127.0.0.1"), (uint16_t)(20000), 0, 0);
+  // {
   // auto asyncer = async_client.Async_Call<QueryService>("query_age", rpc_req2, rpc_res2);
   // asyncer->wait();
+  // }
   // std::cout << "response body: " << rpc_res2->ShortDebugString() << std::endl;
 
   return 0;
