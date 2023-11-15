@@ -154,7 +154,7 @@ std::string formatString(const char* str, Args&&... args) {
 	).getStringStream()
 
 #define RpcErrorLog \
-  printf("%s, %d, %s, errno %d, %s\n", __FILE__, __LINE__, __func__, errno, strerror(errno));\
+  printf("%s: %s, %d, %s, errno %d, %s\n", __TIME__, __FILE__, __LINE__, __func__, errno, strerror(errno));\
   Exit(0); \
   if (tinyrpc::OpenLogger()) \
 	tinyrpc::LogInGrpcLogger( \
