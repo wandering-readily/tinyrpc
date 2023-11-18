@@ -25,7 +25,7 @@ class TimerEvent {
 
  public:
 
-  typedef std::shared_ptr<TimerEvent> ptr;
+  typedef std::shared_ptr<TimerEvent> sptr;
   TimerEvent(int64_t interval, bool is_repeated, std::function<void()>task)
     : m_interval(interval), m_is_repeated(is_repeated), m_task(task) {
     m_arrive_time = details::getNowMs() + m_interval;  	
@@ -68,15 +68,15 @@ class Timer : public tinyrpc::FdEvent {
 
  public:
 
-  typedef std::shared_ptr<Timer> ptr;
+  typedef std::shared_ptr<Timer> sptr;
   
   Timer(Reactor* reactor);
 
 	~Timer();
 
-	void addTimerEvent(TimerEvent::ptr event, bool need_reset = true);
+	void addTimerEvent(TimerEvent::sptr event, bool need_reset = true);
 
-	void delTimerEvent(TimerEvent::ptr event);
+	void delTimerEvent(TimerEvent::sptr event);
 
 	void resetArriveTime();
 
@@ -84,7 +84,7 @@ class Timer : public tinyrpc::FdEvent {
 
  private:
 
- 	std::multimap<int64_t, TimerEvent::ptr> m_pending_events;
+ 	std::multimap<int64_t, TimerEvent::sptr> m_pending_events;
   RWMutex m_event_mutex;
 
 

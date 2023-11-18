@@ -50,18 +50,18 @@ void TinyPbRpcController::SetError(const int err_code, const std::string& err_in
   SetErrorCode(err_code);
 }
 
-void TinyPbRpcController::SetPeerAddr(NetAddress::ptr addr) {
+void TinyPbRpcController::SetPeerAddr(NetAddress::sptr addr) {
   m_peer_addr = addr;
 }
 
-void TinyPbRpcController::SetLocalAddr(NetAddress::ptr addr) {
+void TinyPbRpcController::SetLocalAddr(NetAddress::sptr addr) {
   m_local_addr = addr;
 }
-NetAddress::ptr TinyPbRpcController::PeerAddr() {
+NetAddress::sptr TinyPbRpcController::PeerAddr() {
   return m_peer_addr;
 }
   
-NetAddress::ptr TinyPbRpcController::LocalAddr() {
+NetAddress::sptr TinyPbRpcController::LocalAddr() {
   return m_local_addr;
 }
 

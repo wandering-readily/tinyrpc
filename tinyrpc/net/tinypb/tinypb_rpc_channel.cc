@@ -16,7 +16,7 @@
 
 namespace tinyrpc {
 
-TinyPbRpcChannel::TinyPbRpcChannel(NetAddress::ptr addr) : m_addr(addr) {}
+TinyPbRpcChannel::TinyPbRpcChannel(NetAddress::sptr addr) : m_addr(addr) {}
 
 void TinyPbRpcChannel::CallMethod(const google::protobuf::MethodDescriptor* method, 
     google::protobuf::RpcController* controller, 
@@ -31,7 +31,7 @@ void TinyPbRpcChannel::CallMethod(const google::protobuf::MethodDescriptor* meth
     return;
   }
 
-  TcpClient::ptr m_client = std::make_shared<TcpClient>(m_addr);
+  TcpClient::sptr m_client = std::make_shared<TcpClient>(m_addr);
   rpc_controller->SetLocalAddr(m_client->getLocalAddr());
   rpc_controller->SetPeerAddr(m_client->getPeerAddr());
   
@@ -58,7 +58,7 @@ void TinyPbRpcChannel::CallMethod(const google::protobuf::MethodDescriptor* meth
     rpc_controller->SetMsgReq(pb_struct.msg_req);
   }
 
-  AbstractCodeC::ptr m_codec = m_client->getConnection()->getCodec();
+  AbstractCodeC::sptr m_codec = m_client->getConnection()->getCodec();
   m_codec->encode(m_client->getConnection()->getOutBuffer(), &pb_struct);
   if (!pb_struct.encode_succ) {
     rpc_controller->SetError(ERROR_FAILED_ENCODE, "encode tinypb data error");
@@ -73,7 +73,7 @@ void TinyPbRpcChannel::CallMethod(const google::protobuf::MethodDescriptor* meth
 
   // !!!
   // 关键函数，从pb_struct.msg_req序列中获得返回数据
-  TinyPbStruct::pb_ptr res_data;
+  TinyPbStruct::pb_sptr res_data;
   int rt = m_client->sendAndRecvTinyPb(pb_struct.msg_req, res_data);
   if (rt != 0) {
     rpc_controller->SetError(rt, m_client->getErrInfo());
@@ -108,8 +108,8 @@ void TinyPbRpcChannel::CallMethod(const google::protobuf::MethodDescriptor* meth
 
 
 // 构造函数传入m_client的channel
-TinyPbRpcClientChannel::TinyPbRpcClientChannel(NetAddress::ptr addr, \
-  TcpClient::ptr client) : addr_(addr), client_(client) {}
+TinyPbRpcClientChannel::TinyPbRpcClientChannel(NetAddress::sptr addr, \
+  RpcClient::wptr client) : addr_(addr), weakRpcClient_(client) {}
 
 void TinyPbRpcClientChannel::CallMethod(const google::protobuf::MethodDescriptor* method, 
     google::protobuf::RpcController* controller, 
@@ -124,8 +124,12 @@ void TinyPbRpcClientChannel::CallMethod(const google::protobuf::MethodDescriptor
     return;
   }
 
-  rpc_controller->SetLocalAddr(client_->getLocalAddr());
-  rpc_controller->SetPeerAddr(client_->getPeerAddr());
+
+  RpcClient::sptr rpcClient = weakRpcClient_.lock();
+  assert(rpcClient != nullptr && "rpcClient had released");
+
+  rpc_controller->SetLocalAddr(rpcClient->getLocalAddr());
+  rpc_controller->SetPeerAddr(addr_);
   
   pb_struct.service_full_name = method->full_name();
   RpcDebugLog << "call service_name = " << pb_struct.service_full_name;
@@ -150,8 +154,8 @@ void TinyPbRpcClientChannel::CallMethod(const google::protobuf::MethodDescriptor
     rpc_controller->SetMsgReq(pb_struct.msg_req);
   }
 
-  AbstractCodeC::ptr m_codec = client_->getConnection()->getCodec();
-  m_codec->encode(client_->getConnection()->getOutBuffer(), &pb_struct);
+  AbstractCodeC::sptr codec = rpcClient->getCodec();
+  codec->encode(rpcClient->getConnection(addr_)->getOutBuffer(), &pb_struct);
   if (!pb_struct.encode_succ) {
     rpc_controller->SetError(ERROR_FAILED_ENCODE, "encode tinypb data error");
     return;
@@ -161,16 +165,16 @@ void TinyPbRpcClientChannel::CallMethod(const google::protobuf::MethodDescriptor
   RpcInfoLog << pb_struct.msg_req << "|" << rpc_controller->PeerAddr()->toString() 
       << "|. Set client send request data:" << request->ShortDebugString();
   RpcInfoLog << "============================================================";
-  client_->setTimeout(rpc_controller->Timeout());
+  rpcClient->setTimeout(rpc_controller->Timeout());
 
   // !!!
   // 关键函数，从pb_struct.msg_req序列中获得返回数据
-  TinyPbStruct::pb_ptr res_data;
-  int rt = client_->sendAndRecvTinyPb(pb_struct.msg_req, res_data);
+  TinyPbStruct::pb_sptr res_data;
+  int rt = rpcClient->sendAndRecvTinyPb(addr_, pb_struct.msg_req, res_data);
   if (rt != 0) {
-    rpc_controller->SetError(rt, client_->getErrInfo());
+    rpc_controller->SetError(rt, rpcClient->getErrInfo());
     RpcErrorLog << pb_struct.msg_req << "|call rpc occur client error, service_full_name=" << pb_struct.service_full_name << ", error_code=" 
-        << rt << ", error_info = " << client_->getErrInfo();
+        << rt << ", error_info = " << rpcClient->getErrInfo();
     return;
   }
 

@@ -13,7 +13,7 @@ namespace tinyrpc {
 
 class HttpRequest : public AbstractData {
  public:
-  typedef std::shared_ptr<HttpRequest> ptr; 
+  typedef std::shared_ptr<HttpRequest> sptr; 
 
  public:
   HttpMethod m_request_method;   

@@ -58,7 +58,7 @@ void TinyPbRpcDispacther::dispatch(AbstractData* data, TcpConnection* conn) {
     return;
   }
 
-  // 4. 寻找已经注册的服务service_ptr
+  // 4. 寻找已经注册的服务service_sptr
   Coroutine::GetCurrentCoroutine()->getRunTime()->m_interface_name = tmp->service_full_name;
   auto it = m_service_map.find(service_name);
   if (it == m_service_map.end() || !((*it).second)) {
@@ -75,7 +75,7 @@ void TinyPbRpcDispacther::dispatch(AbstractData* data, TcpConnection* conn) {
 
   }
 
-  service_ptr service = (*it).second;
+  service_sptr service = (*it).second;
 
   // 5. google::protobuf操作
   const google::protobuf::MethodDescriptor* method = service->GetDescriptor()->FindMethodByName(method_name);
@@ -162,7 +162,7 @@ bool TinyPbRpcDispacther::parseServiceFullName(const std::string& full_name, std
 
 }
 
-void TinyPbRpcDispacther::registerService(service_ptr service) {
+void TinyPbRpcDispacther::registerService(service_sptr service) {
   std::string service_name = service->GetDescriptor()->full_name();
   m_service_map[service_name] = service;
   RpcInfoLog << "succ register service[" << service_name << "]!"; 

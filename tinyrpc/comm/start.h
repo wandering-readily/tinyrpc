@@ -10,6 +10,7 @@
 #include "tinyrpc/net/tcp/tcp_server.h"
 #include "tinyrpc/net/timer.h"
 #include "tinyrpc/net/net_address.h"
+#include "tinyrpc/coroutine/coroutine_pool.h"
 
 namespace tinyrpc {
 
@@ -35,7 +36,7 @@ public:
   void RegisterHttpServlet(const std::string &url_path) {
     if constexpr (std::is_base_of_v<AsyncHttpServlet, T>) {
       if(!gRpcServer_->registerHttpServlet(url_path, 
-          std::make_shared<T>(std::weak_ptr<CoroutinePool> (corPool_), \
+          std::make_shared<T>(CoroutinePool::wptr (corPool_), \
           std::weak_ptr<IOThreadPool> (gRpcServer_->getSharedIOThreadPool())))) {
         printf("Start TinyRPC server error, because register http servelt error, \
           please look up rpc log get more details!\n"); \
@@ -62,8 +63,8 @@ public:
     }
   }
 
-  TcpServer::ptr GetServer();
-  Config::ptr GetConfig();
+  TcpServer::sptr GetServer();
+  Config::sptr  GetConfig();
 
   void StartRpcServer();
 
@@ -79,13 +80,13 @@ private:
   // 析构顺序按照反声明顺序
   std::string configName_;
 
-  Config::ptr gRpcConfig_;
+  Config::sptr  gRpcConfig_;
 
-  std::shared_ptr<CoroutinePool> corPool_;
-  std::shared_ptr<FdEventContainer> fdEventPool_;
-  std::shared_ptr<CoroutineTaskQueue> coroutine_task_queue_;
+  CoroutinePool::sptr corPool_;
+  FdEventContainer::sptr fdEventPool_;
+  CoroutineTaskQueue::sptr coroutine_task_queue_;
 
-  TcpServer::ptr gRpcServer_;
+  TcpServer::sptr gRpcServer_;
 };
 
 }; // namespace tinyrpc

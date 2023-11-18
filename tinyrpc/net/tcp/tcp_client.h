@@ -19,16 +19,16 @@ class LightTimerPool;
 //
 class TcpClient {
  public:
-  typedef std::shared_ptr<TcpClient> ptr;
+  typedef std::shared_ptr<TcpClient> sptr;
 
-  TcpClient(NetAddress::ptr addr, \
+  TcpClient(NetAddress::sptr addr, \
     ProtocalType type = tinyrpc::ProtocalType::TinyPb_Protocal);
 
   ~TcpClient();
 
   void resetFd();
 
-  int sendAndRecvTinyPb(const std::string& msg_no, TinyPbStruct::pb_ptr& res);
+  int sendAndRecvTinyPb(const std::string& msg_no, TinyPbStruct::pb_sptr& res);
 
   void stop();
 
@@ -46,20 +46,23 @@ class TcpClient {
     return m_err_info;
   }
 
-  NetAddress::ptr getPeerAddr() const {
+  NetAddress::sptr getPeerAddr() const {
     return m_peer_addr;
   }
 
-  NetAddress::ptr getLocalAddr() const {
+  NetAddress::sptr getLocalAddr() const {
     return m_local_addr;
   }
 
-  AbstractCodeC::ptr getCodeC() {
+  AbstractCodeC::sptr getCodeC() {
     return m_codec;
   }
 
 
  private:
+
+  bool isServerConn_ {false};
+  Reactor* m_reactor {nullptr};
 
   int m_family {0};
   int m_fd {-1};
@@ -68,18 +71,19 @@ class TcpClient {
   bool m_is_stop {false};
   std::string m_err_info;      // error info of client
 
-  NetAddress::ptr m_local_addr {nullptr};
-  NetAddress::ptr m_peer_addr {nullptr};
+  NetAddress::sptr m_local_addr {nullptr};
+  NetAddress::sptr m_peer_addr {nullptr};
   // Reactor* m_reactor {nullptr};
-  TcpConnection::ptr m_connection {nullptr};
+  TcpConnection::sptr m_connection {nullptr};
 
-  AbstractCodeC::ptr m_codec {nullptr};
+  AbstractCodeC::sptr m_codec {nullptr};
 
   bool m_connect_succ {false};
   
-  std::shared_ptr<FdEventContainer> fdEventPool_;
+  FdEventContainer::sptr fdEventPool_;
 
   std::shared_ptr<LightTimerPool> lightTimerPool_;
+
 }; 
 
 }

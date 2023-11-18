@@ -51,7 +51,7 @@ Timer::~Timer() {
 }
 
 
-void Timer::addTimerEvent(TimerEvent::ptr event, bool need_reset /*=true*/) {
+void Timer::addTimerEvent(TimerEvent::sptr event, bool need_reset /*=true*/) {
   bool is_reset = false;
   {
   RWMutex::WriteLock lock(m_event_mutex);
@@ -75,7 +75,7 @@ void Timer::addTimerEvent(TimerEvent::ptr event, bool need_reset /*=true*/) {
 
 // ???
 // timerEvent需不需要加锁确保多线程安全?
-void Timer::delTimerEvent(TimerEvent::ptr event) {
+void Timer::delTimerEvent(TimerEvent::sptr event) {
   // 在timer中删除事件
   // 同时也要在事件上标记删除
   // event->m_is_cancled = true;
@@ -156,7 +156,7 @@ void Timer::onTimer() {
   }
 
   int64_t now = details::getNowMs();
-  std::vector<TimerEvent::ptr> tmps;
+  std::vector<TimerEvent::sptr> tmps;
   std::vector<std::pair<int64_t, std::function<void()>>> tasks;
   {
   // 找到未超时的event

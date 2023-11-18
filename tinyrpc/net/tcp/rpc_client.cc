@@ -12,13 +12,14 @@
 #include "tinyrpc/net/http/http_codec.h"
 #include "tinyrpc/net/tinypb/tinypb_codec.h"
 
+#include "tinyrpc/net/tcp/light_timer.h"
+
 namespace tinyrpc {
 
 RpcClient::RpcClient(ProtocalType type) \
     : fdEventPool_(std::make_shared<FdEventContainer>(1000)) {
 
   local_addr_ = std::make_shared<tinyrpc::IPAddress>("127.0.0.1", 0);
-  reactor_ = Reactor::GetReactor();
 
   if (type == ProtocalType::Http_Protocal) {
 		codec_ = std::make_shared<HttpCodeC>();
@@ -33,7 +34,6 @@ RpcClient::~RpcClient() {
   while (it != connections_.end()) {
     int fd = it->second->getFd();
     if (fd > 0) {
-      fdEventPool_->getFdEvent(fd)->unregisterFromReactor(); 
       close(fd);
       RpcDebugLog << "~TcpClient() close fd = " << fd;
     }
@@ -42,7 +42,7 @@ RpcClient::~RpcClient() {
 }
 
 
-bool RpcClient::connect(NetAddress::ptr peer_addr) {
+bool RpcClient::connect(NetAddress::sptr peer_addr) {
   int fd = socket(AF_INET, SOCK_STREAM, 0);
   if (fd == -1) {
     RpcErrorLog << "call socket error, fd=-1, sys error=" << strerror(errno);
@@ -50,7 +50,7 @@ bool RpcClient::connect(NetAddress::ptr peer_addr) {
   }
   RpcDebugLog << "TcpClient() create fd = " << fd;
 
-  auto conn = std::make_shared<TcpConnection>(this->codec_, reactor_, \
+  auto conn = std::make_shared<TcpConnection>(this->codec_, nullptr, \
     fd, 128, peer_addr, fdEventPool_);
   if (!conn) {
     return false;
@@ -59,20 +59,25 @@ bool RpcClient::connect(NetAddress::ptr peer_addr) {
   return true;
 }
 
-TcpConnection* RpcClient::getConnection(NetAddress::ptr peer_addr) {
-  return getConnection(peer_addr->toString());
-}
-
-TcpConnection* RpcClient::getConnection(const std::string &peer_addr) {
-  if (connections_.find(peer_addr) == connections_.end()) {
+TcpConnection::sptr RpcClient::getConnection(NetAddress::sptr peer_addr) {
+  const std::string addr = peer_addr->toString();
+  if (connections_.find(addr) == connections_.end()) {
     return nullptr;
   }
-  return connections_[peer_addr].get();
+  return connections_[addr];
+}
+
+bool RpcClient::delConnection(NetAddress::sptr peer_addr) {
+  const std::string addr = peer_addr->toString();
+  if (connections_.find(addr) == connections_.end()) {
+    return false;
+  }
+  return connections_.erase(addr);
+  return true;
 }
 
 int RpcClient::resetFd(int fd) {
-  tinyrpc::FdEvent::ptr fd_event = fdEventPool_->getFdEvent(fd);
-  fd_event->unregisterFromReactor();
+  tinyrpc::FdEvent::sptr fd_event = fdEventPool_->getFdEvent(fd);
   close(fd);
   fd = socket(AF_INET, SOCK_STREAM, 0);
   if (fd == -1) {
@@ -81,39 +86,28 @@ int RpcClient::resetFd(int fd) {
   return fd;
 }
 
-int RpcClient::sendAndRecvTinyPb(NetAddress::ptr peer_addr, \
-    const std::string& msg_no, TinyPbStruct::pb_ptr& res) {
- 
+int RpcClient::sendAndRecvTinyPb(NetAddress::sptr peer_addr, \
+    const std::string& msg_no, TinyPbStruct::pb_sptr& res) {
+  
   std::string addr = peer_addr->toString();
   auto it = connections_.find(addr);
   if (it == connections_.end()) {
-    RpcErrorLog << "can't find conn" << peer_addr;
+    RpcInfoLog << "can't find conn" << peer_addr;
     getConnection(peer_addr);
   }
-  auto conn = connections_[addr];
+  tinyrpc::TcpConnection::sptr conn = connections_[addr];
   int fd = conn->getFd();
-
-  // 设置定时timeout
+  
   bool is_timeout = false;
-  tinyrpc::Coroutine* cur_cor = tinyrpc::Coroutine::GetCurrentCoroutine();
-  // 1. 
-  // timercb将在调用时恢复当前环境
-  // 此时timeout，设置m_is_over_time=true
-  // 这样就会打断client等待服务器回复的循环
-  auto timer_cb = [conn, &is_timeout, cur_cor]() {
+  auto timer_cb = [&is_timeout, &conn]() {
     RpcInfoLog << "TcpClient timer out event occur";
     // is_timeout设置，且m_connection也设置超时
     is_timeout = true;
     conn->setOverTimeFlag(true); 
-    tinyrpc::Coroutine::Resume(cur_cor);
   };
-  // 将超时恢复环境任务存放在m_reactor->getTimer()
-  // ???
-  // 是否应该增加超时重连机制?
-  TimerEvent::ptr event = std::make_shared<TimerEvent>(m_max_timeout, false, timer_cb);
-  reactor_->getTimer()->addTimerEvent(event);
 
-  RpcDebugLog << "add rpc timer event, timeout on " << event->m_arrive_time;
+  auto timer = std::make_shared<LightTimer> (m_max_timeout, timer_cb, lightTimerPool_);
+  timer->registerInLoop();
 
   while (!is_timeout) {
     RpcDebugLog << "begin to connect";
@@ -127,24 +121,20 @@ int RpcClient::sendAndRecvTinyPb(NetAddress::ptr peer_addr, \
         conn->setUpClient();
         break;
       }
+
       // 重连失败后重置FD
       fd = resetFd(fd);
       conn->setFd(fd);
 
       if (is_timeout) {
-        // m_connection超时后仍未连接上
         RpcInfoLog << "connect timeout, break";
         goto err_deal;
       }
       if (errno == ECONNREFUSED) {
-        // peer addr拒绝连接
-        // 返回连接失败
         std::stringstream ss;
         ss << "connect error, peer[ " << peer_addr->toString() <<  " ] closed.";
         m_err_info = ss.str();
         RpcErrorLog << "cancle overtime event, err info=" << m_err_info;
-        // 删除之前的定时事件
-        reactor_->getTimer()->delTimerEvent(event);
         return ERROR_PEER_CLOSED;
       }
       if (errno == EAFNOSUPPORT) {
@@ -153,7 +143,6 @@ int RpcClient::sendAndRecvTinyPb(NetAddress::ptr peer_addr, \
         ss << "connect cur sys ror, errinfo is " << std::string(strerror(errno)) <<  " ] closed.";
         m_err_info = ss.str();
         RpcErrorLog << "cancle overtime event, err info=" << m_err_info;
-        reactor_->getTimer()->delTimerEvent(event);
         return ERROR_CONNECT_SYS_ERR;
 
       } 
@@ -166,7 +155,6 @@ int RpcClient::sendAndRecvTinyPb(NetAddress::ptr peer_addr, \
     std::stringstream ss;
     ss << "connect peer addr[" << peer_addr->toString() << "] error. sys error=" << strerror(errno);
     m_err_info = ss.str();
-    reactor_->getTimer()->delTimerEvent(event);
     return ERROR_FAILED_CONNECT;
   }
 
@@ -200,13 +188,11 @@ int RpcClient::sendAndRecvTinyPb(NetAddress::ptr peer_addr, \
 
   }
 
-  reactor_->getTimer()->delTimerEvent(event);
   m_err_info = "";
   return 0;
 
 err_deal:
   // connect error should close fd and reopen new one
-  fdEventPool_->getFdEvent(fd)->unregisterFromReactor();
   close(fd);
   fd = socket(AF_INET, SOCK_STREAM, 0);
   std::stringstream ss;

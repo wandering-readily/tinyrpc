@@ -13,6 +13,10 @@ class LightTimerPool;
 class LightTimer : public std::enable_shared_from_this<LightTimer> {
 
 public:
+  typedef std::shared_ptr<LightTimer> sptr;
+  typedef std::weak_ptr<LightTimerPool> wptr;
+
+public:
   friend class LightTimerPool;
 
 public:
@@ -28,9 +32,12 @@ private:
 
   int getFd() const {return fd_;}
 
+  void cancel();
+
   void callback() {
     cb_();
     called = true;
+    cancel();
   }
 
   sem_t *getwaitAddInLoopSem() {return &sem_waitAddInLoop;}
@@ -47,14 +54,17 @@ private:
 
 class LightTimerPool {
 
+public:
+  typedef std::shared_ptr<LightTimerPool> sptr;
+
 private:
-  using PISP = std::pair<int, std::shared_ptr<LightTimer>>;
+  using PISP = std::pair<int, LightTimer::sptr>;
 
 public:
   LightTimerPool();
   ~LightTimerPool();
 
-  bool addLightTimer(std::shared_ptr<LightTimer>);
+  bool addLightTimer(LightTimer::sptr);
   bool delLightTimer(int);
 
 private:
@@ -62,7 +72,7 @@ private:
   void addWakeupFd();
   void wakeup();
 
-  bool addLightTimerInLoop(int, std::shared_ptr<LightTimer>);
+  bool addLightTimerInLoop(int, LightTimer::sptr);
   bool delLightTimerInLoop(int);
 
   static void *Loop(void *);

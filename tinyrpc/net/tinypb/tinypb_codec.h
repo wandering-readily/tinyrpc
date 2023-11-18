@@ -10,9 +10,11 @@ namespace tinyrpc {
 
 
 class TinyPbCodeC: public AbstractCodeC {
- public:
-  // typedef std::shared_ptr<TinyPbCodeC> ptr;
 
+ public:
+  typedef std::shared_ptr<TinyPbCodeC> sptr;
+
+ public:
   TinyPbCodeC();
 
   ~TinyPbCodeC ();

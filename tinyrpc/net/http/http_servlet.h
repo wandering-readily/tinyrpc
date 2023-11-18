@@ -11,9 +11,11 @@ class CoroutinePool;
 class IOThreadPool;
 
 class HttpServlet : public std::enable_shared_from_this<HttpServlet> {
- public:
-  typedef std::shared_ptr<HttpServlet> ptr;
 
+ public:
+  typedef std::shared_ptr<HttpServlet> sptr;
+
+ public:
   HttpServlet();
 
   virtual ~HttpServlet();

@@ -23,10 +23,10 @@ class IOThread {
 
  public:
   
-  typedef std::shared_ptr<IOThread> ptr;
- 	IOThread(std::weak_ptr<CoroutineTaskQueue> corTaskQueue);
+  typedef std::shared_ptr<IOThread> sptr;
+ 	IOThread(CoroutineTaskQueue::wptr corTaskQueue);
 
-  std::weak_ptr<CoroutineTaskQueue> getweakCorTaskQueue() {return weakCorTaskQueue_;}
+  CoroutineTaskQueue::wptr getweakCorTaskQueue() {return weakCorTaskQueue_;}
 
 	~IOThread();  
 
@@ -55,24 +55,25 @@ class IOThread {
  	Reactor* m_reactor {nullptr};
 	pthread_t m_thread {0};
 	pid_t m_tid {-1};
-  TimerEvent::ptr m_timer_event {nullptr};
+  TimerEvent::sptr m_timer_event {nullptr};
   int m_index {-1};
 
 
 private:
-  std::weak_ptr<CoroutineTaskQueue> weakCorTaskQueue_;
+  CoroutineTaskQueue::wptr weakCorTaskQueue_;
 
 };
 
 class IOThreadPool : public std::enable_shared_from_this<IOThreadPool> {
 
  public:
-  typedef std::shared_ptr<IOThreadPool> ptr;
+  typedef std::shared_ptr<IOThreadPool> sptr;
+  typedef std::weak_ptr<IOThreadPool> wptr;
 
   IOThreadPool(int size, std::weak_ptr<CoroutinePool>);
   ~IOThreadPool() = default;
 
-  void beginThreadPool(std::weak_ptr<CoroutineTaskQueue>);
+  void beginThreadPool(CoroutineTaskQueue::wptr);
 
   void start();
 
@@ -84,16 +85,16 @@ class IOThreadPool : public std::enable_shared_from_this<IOThreadPool> {
 
   void addTaskByIndex(int index, std::function<void()> cb);
 
-  void addCoroutineToRandomThread(Coroutine::ptr cor, bool self = false);
+  void addCoroutineToRandomThread(Coroutine::sptr cor, bool self = false);
 
   // add a coroutine to random thread in io thread pool
   // self = false, means random thread cann't be current thread
   // please free cor, or causes memory leak
   // call returnCoroutine(cor) to free coroutine
-  tinyrpc::IOThread::ptr getRandomThread(bool);
-  Coroutine::ptr addCoroutineToRandomThread(std::function<void()> cb, bool self = false);
+  tinyrpc::IOThread::sptr getRandomThread(bool);
+  Coroutine::sptr addCoroutineToRandomThread(std::function<void()> cb, bool self = false);
 
-  Coroutine::ptr addCoroutineToThreadByIndex(int index, std::function<void()> cb, bool self = false);
+  Coroutine::sptr addCoroutineToThreadByIndex(int index, std::function<void()> cb, bool self = false);
 
   void addCoroutineToEachThread(std::function<void()> cb);
 
@@ -102,7 +103,7 @@ class IOThreadPool : public std::enable_shared_from_this<IOThreadPool> {
 
   std::atomic<int> m_index {-1};
 
-  std::vector<IOThread::ptr> m_io_threads;
+  std::vector<IOThread::sptr> m_io_threads;
   
   std::weak_ptr<CoroutinePool> weakCorPool_;
 

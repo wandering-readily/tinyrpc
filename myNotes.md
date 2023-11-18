@@ -32,17 +32,17 @@
         - ```if (protocal == "HTTP") { gRpcServer = std::make_shared<TcpServer>(addr, Http_Protocal);} else {gRpcServer = std::make_shared<TcpServer>(addr, TinyPb_Protocal);}```       创建gRpcServer
 
         - TcpServer()的构造函数直接构造 m_dispatcher(访问路径转发器), m_codec(gprobuf的encode/decode), m_protocal_type(协议)， m_main_reactor(主线程，用于接受tcp连接(accept_hook和m_accept_cor彼此异步))，
-            - m_time_wheel时间轮，往m_main_reactor->getTimer()也就是Timer定时器添加TcpTimeWheel::loopFunc()回调函数，loopFunc()在每个时间轮取出std::vector<TcpConnectionSlot::ptr>， 析构函数执行TcpConnectionSlot::ptr slot时间
+            - m_time_wheel时间轮，往m_main_reactor->getTimer()也就是Timer定时器添加TcpTimeWheel::loopFunc()回调函数，loopFunc()在每个时间轮取出std::vector<TcpConnectionSlot::sptr>， 析构函数执行TcpConnectionSlot::sptr slot时间
 
             - m_clear_clent_timer_event将往m_main_reactor->getTimer()添加定时事件m_clear_clent_timer_event，执行TcpServer::ClearClientTimerFuc()函数，shared_ptr.reset()断开TcpConnection连接，
 
-            - 而m_time_wheel的添加事件fresh()只在freshTcpConnection()函数中调用, TcpTimeWheel::TcpConnectionSlot::ptr将被填入freshTcpConnection()中，执行TcpConnection断开连接事件
+            - 而m_time_wheel的添加事件fresh()只在freshTcpConnection()函数中调用, TcpTimeWheel::TcpConnectionSlot::sptr将被填入freshTcpConnection()中，执行TcpConnection断开连接事件
 
-            - 而只有registerToTimeWheel()调用freshTcpConnection()函数，```auto cb = [] (TcpConnection::ptr conn) {conn->shutdownConnection();}; TcpTimeWheel::TcpConnectionSlot::ptr tmp = std::make_shared<AbstractSlot<TcpConnection>>(shared_from_this(), cb); m_weak_slot = tmp;``` 函数不会将当前TcpConnection的shared_ptr计数增加，AbstractSlot<TcpConnection>类在构造时只保存weak_ptr<>
+            - 而只有registerToTimeWheel()调用freshTcpConnection()函数，```auto cb = [] (TcpConnection::sptr conn) {conn->shutdownConnection();}; TcpTimeWheel::TcpConnectionSlot::sptr tmp = std::make_shared<AbstractSlot<TcpConnection>>(shared_from_this(), cb); m_weak_slot = tmp;``` 函数不会将当前TcpConnection的shared_ptr计数增加，AbstractSlot<TcpConnection>类在构造时只保存weak_ptr<>
 
             - 也就是说m_time_wheel取出的回调函数执行时，会升级weak_ptr<TcpConnection>，如果已经在ClearClientTimerFuc()断开连接，那么什么也不会执行，否则将会执行断开连接操作
 
-            - 注意到TcpConnection::input()函数在正确接受来自client的字节流时，```if (m_connection_type == ServerConnection) { TcpTimeWheel::TcpConnectionSlot::ptr tmp = m_weak_slot.lock(); if (tmp) { m_tcp_svr->freshTcpConnection(tmp); }}```，这段代码可能没什么意义，因为在initServer()  --> registerToTimeWheel()  --> ```m_weak_slot = tmp; m_tcp_svr->freshTcpConnection(tmp);``` 中已经注册了m_weak_ptr的断开回调函数
+            - 注意到TcpConnection::input()函数在正确接受来自client的字节流时，```if (m_connection_type == ServerConnection) { TcpTimeWheel::TcpConnectionSlot::sptr tmp = m_weak_slot.lock(); if (tmp) { m_tcp_svr->freshTcpConnection(tmp); }}```，这段代码可能没什么意义，因为在initServer()  --> registerToTimeWheel()  --> ```m_weak_slot = tmp; m_tcp_svr->freshTcpConnection(tmp);``` 中已经注册了m_weak_ptr的断开回调函数
 
     - log模块
         - Logger缓冲设计，
@@ -79,7 +79,7 @@
     - coroutine_hook.c模块
         - **调用的精髓，如果当前协程不是t_main_corutine，那么toEpoll将当前事件注册到当前线程的reactor，并关联当前协程，等待reactor事件唤醒，而后删除到当前reactor的注册，取消关联协程，并返回结果**
     - coroutine_pool.c模块
-        - **协程池，源代码采取 线程M : 协程N 的对应模式，协程池提供了获得当前或额外的协程函数(其中设有memory ==> stack内存分配) Coroutine::ptr CoroutinePool::getCoroutineInstanse()，以及协程内容归还函数void CoroutinePool::returnCoroutine(Coroutine::ptr cor)**
+        - **协程池，源代码采取 线程M : 协程N 的对应模式，协程池提供了获得当前或额外的协程函数(其中设有memory ==> stack内存分配) Coroutine::sptr CoroutinePool::getCoroutineInstanse()，以及协程内容归还函数void CoroutinePool::returnCoroutine(Coroutine::sptr cor)**
     - memory模块
         - 分配和回收协程内存
 
@@ -173,8 +173,8 @@
             - 继承自google::protobuf::RpcController虚基类，承担CallMethod()的控制显示类功能
         
         - TinyPbRpcDispacther模块
-            - ```std::map<std::string, service_ptr> m_service_map;```记录服务转发路径
-            - ```void registerService(service_ptr service)``` 记录服务
+            - ```std::map<std::string, service_sptr> m_service_map;```记录服务转发路径
+            - ```void registerService(service_sptr service)``` 记录服务
             - ```REGISTER_HTTP_SERVLET REGISTER_SERVICE宏 调用不同的registerService()```
             - dispatch()函数将decode的内容解码decode，调用service，并将内容编码encode进写buffer
 
@@ -232,7 +232,7 @@
                 - ***重点阅读debug函数***
                 - TcpAcceptor::::toAccept()函数调用accept_hook()
                 - ```IOThread *io_thread = m_io_pool->getIOThread();```
-                - ```TcpConnection::ptr conn = addClient(io_thread, fd);```
+                - ```TcpConnection::sptr conn = addClient(io_thread, fd);```
                 - ```conn->initServer();```
                 - ```io_thread->getReactor()->addCoroutine(conn->getCoroutine());```
                 - ```m_tcp_counts++;```

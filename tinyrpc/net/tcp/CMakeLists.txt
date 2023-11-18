@@ -9,6 +9,7 @@ set(HEADERS
 
     rpc_client.h
     light_timer.h
+    socket.h
 )
 
 install(FILES ${HEADERS} DESTINATION include/tinyrpc/net/tcp)

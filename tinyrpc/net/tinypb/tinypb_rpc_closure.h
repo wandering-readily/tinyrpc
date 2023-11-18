@@ -10,7 +10,7 @@ namespace tinyrpc {
 
 class TinyPbRpcClosure : public google::protobuf::Closure {
  public:
-  typedef std::shared_ptr<TinyPbRpcClosure> ptr;
+  typedef std::shared_ptr<TinyPbRpcClosure> sptr;
   explicit TinyPbRpcClosure(std::function<void()> cb) : m_cb(cb) {
 
   }

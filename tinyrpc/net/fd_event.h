@@ -34,7 +34,7 @@ enum IOEvent {
 class FdEvent : public std::enable_shared_from_this<FdEvent> {
  public:
 
-  typedef std::shared_ptr<FdEvent> ptr;
+  typedef std::shared_ptr<FdEvent> sptr;
   
   FdEvent(tinyrpc::Reactor* reactor, int fd = -1);
 
@@ -90,22 +90,31 @@ class FdEvent : public std::enable_shared_from_this<FdEvent> {
 
   Coroutine* m_coroutine {nullptr};
 
+  // 指示fd是否已经注册
+  // 便于serverConnection, clientConnection用不用reactor
+  // 为什么不用atomic_bool呢，因为这框架一个fd只用在一个thread上，因此是线程安全的
+  bool fdInReactor {false};
+
 };
 
 
 class FdEventContainer {
 
  public:
+  typedef std::shared_ptr<FdEventContainer> sptr;
+  typedef std::weak_ptr<FdEventContainer> wptr;
+
+ public:
   FdEventContainer(int size);
 
-  FdEvent::ptr getFdEvent(int fd); 
+  FdEvent::sptr getFdEvent(int fd); 
 
  public:
 
  private:
   // 用哈希表是不是性能更好?
   RWMutex m_mutex;
-  std::vector<FdEvent::ptr> m_fds;
+  std::vector<FdEvent::sptr> m_fds;
 
 };
 

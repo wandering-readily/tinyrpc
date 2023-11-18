@@ -24,13 +24,13 @@ namespace tinyrpc {
 
 class FdEvent;
 
-int accept_hook(std::shared_ptr<FdEvent>, struct sockaddr *, socklen_t *);
+int accept_hook(std::shared_ptr<FdEvent> , struct sockaddr *, socklen_t *);
 
-ssize_t read_hook(std::shared_ptr<FdEvent>, void *, size_t);
+ssize_t read_hook(std::shared_ptr<FdEvent> , void *, size_t);
 
-ssize_t write_hook(std::shared_ptr<FdEvent>, const void *, size_t);
+ssize_t write_hook(std::shared_ptr<FdEvent> , const void *, size_t);
 
-int connect_hook(std::shared_ptr<FdEvent>, const struct sockaddr *, socklen_t);
+int connect_hook(std::shared_ptr<FdEvent> , const struct sockaddr *, socklen_t);
 
 unsigned int sleep_hook(unsigned int seconds);
 

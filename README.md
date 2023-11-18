@@ -146,9 +146,9 @@ DebugLog << "RootHttpServlet end to call RPC" << count;
   std::shared_ptr<tinyrpc::TinyPbRpcController> rpc_controller = std::make_shared<tinyrpc::TinyPbRpcController>();
   rpc_controller->SetTimeout(10000);
 
-  tinyrpc::IPAddress::ptr addr = std::make_shared<tinyrpc::IPAddress>("127.0.0.1", 39999);
+  tinyrpc::IPAddress::sptr addr = std::make_shared<tinyrpc::IPAddress>("127.0.0.1", 39999);
 
-  tinyrpc::TinyPbRpcAsyncChannel::ptr async_channel = 
+  tinyrpc::TinyPbRpcAsyncChannel::sptr async_channel = 
     std::make_shared<tinyrpc::TinyPbRpcAsyncChannel>(addr);
 
   async_channel->saveCallee(rpc_controller, rpc_req, rpc_res, nullptr);
@@ -720,9 +720,9 @@ class NonBlockCallHttpServlet: public tinyrpc::HttpServlet {
 
     AppDebugLog << "NonBlockCallHttpServlet begin to call RPC async";
 
-    tinyrpc::IPAddress::ptr addr = std::make_shared<tinyrpc::IPAddress>("127.0.0.1", 39999);
+    tinyrpc::IPAddress::sptr addr = std::make_shared<tinyrpc::IPAddress>("127.0.0.1", 39999);
     // 注意区别，这是使用的是 TinyPbRpcAsyncChannel, 而不是 TinyPbRpcChannel
-    tinyrpc::TinyPbRpcAsyncChannel::ptr async_channel = 
+    tinyrpc::TinyPbRpcAsyncChannel::sptr async_channel = 
       std::make_shared<tinyrpc::TinyPbRpcAsyncChannel>(addr);
 
     auto cb = [rpc_res]() {

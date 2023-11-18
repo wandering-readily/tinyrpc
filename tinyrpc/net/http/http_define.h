@@ -3,6 +3,8 @@
 
 #include <string>
 #include <map>
+#include <memory>
+
 
 namespace tinyrpc {
 
@@ -28,6 +30,10 @@ enum HttpCode {
 const char* httpCodeToString(const int code);
 
 class HttpHeaderComm {
+
+ public:
+  typedef std::shared_ptr<HttpHeaderComm> sptr;
+
  public:
   HttpHeaderComm() = default;
 

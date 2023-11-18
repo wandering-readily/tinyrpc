@@ -43,7 +43,7 @@ class MySQLThreadInit {
 class MySQLInstase {
  public:
 
-  typedef std::shared_ptr<MySQLInstase> ptr;
+  typedef std::shared_ptr<MySQLInstase> sptr;
 
   MySQLInstase(const MySQLOption& option);
 
@@ -92,7 +92,7 @@ class MySQLInstaseFactroy {
 
   ~MySQLInstaseFactroy() = default;
 
-  MySQLInstase::ptr GetMySQLInstase(const std::string& key);
+  MySQLInstase::sptr GetMySQLInstase(const std::string& key);
  public:
   static MySQLInstaseFactroy* GetThreadMySQLFactory(std::map<std::string, MySQLOption>);
   std::map<std::string, MySQLOption> m_mysql_options;

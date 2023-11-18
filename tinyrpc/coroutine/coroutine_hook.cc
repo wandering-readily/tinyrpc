@@ -12,6 +12,7 @@
 #include "tinyrpc/comm/log.h"
 #include "tinyrpc/comm/config.h"
 
+
 // name ==> read
 // name##_fun_ptr_t ==> read_fun_ptr_t ==> typedef ssize_t (*read_fun_ptr_t)(int fd, void *buf, size_t count);
 // name##_fun_ptr_t是函数类型
@@ -52,7 +53,7 @@ void SetHook(bool value) {
 }
 
 // 查看监听事件
-void toEpoll(tinyrpc::FdEvent::ptr fd_event, int events) {
+void toEpoll(tinyrpc::FdEvent::sptr fd_event, int events) {
 	
 	tinyrpc::Coroutine* cur_cor = tinyrpc::Coroutine::GetCurrentCoroutine() ;
 	if (events & tinyrpc::IOEvent::READ) {
@@ -79,7 +80,7 @@ void toEpoll(tinyrpc::FdEvent::ptr fd_event, int events) {
 	// fd_event->updateToReactor();
 }
 
-ssize_t read_hook(tinyrpc::FdEvent::ptr fd_event, void *buf, size_t count) {
+ssize_t read_hook(tinyrpc::FdEvent::sptr fd_event, void *buf, size_t count) {
 	RpcDebugLog << "this is hook read";
   // 主协程直接调用系统函数
   // 否则要在reactor上监听
@@ -107,10 +108,21 @@ ssize_t read_hook(tinyrpc::FdEvent::ptr fd_event, void *buf, size_t count) {
 	// because reactor should always care read event when a connection sockfd was created
 	// so if first call sys read, and read return success, this fucntion will not register read event and return
 	// for this connection sockfd, reactor will never care read event
-  ssize_t n = g_sys_read_fun(fd, buf, count);
-  if (n > 0) {
-    return n;
-  } 
+  // ssize_t n = g_sys_read_fun(fd, buf, count);
+  // int savedErrno = errno;
+  // if (n > 0) {
+    // return n;
+  // } else {
+	// if (n == 0 || (n < 0 && savedErrno == EAGAIN)) {
+		// errno = savedErrno;
+		// return n;
+	// } else if (savedErrno != EINTR) {
+		// std::stringstream ss;
+		// ss << __FILE__ << "-" << __func__ << "-" << __LINE__ <<  ", errno " << errno << ", " << strerror(errno) << "\n";
+		// throw(ss.str());
+		// Exit(0);
+	// }
+  // }
 
 	// 设置当前协程事件
 	toEpoll(fd_event, tinyrpc::IOEvent::READ);
@@ -132,7 +144,7 @@ ssize_t read_hook(tinyrpc::FdEvent::ptr fd_event, void *buf, size_t count) {
 }
 
 // server主线程调用的accept_hook
-int accept_hook(tinyrpc::FdEvent::ptr fd_event, struct sockaddr *addr, socklen_t *addrlen) {
+int accept_hook(tinyrpc::FdEvent::sptr fd_event, struct sockaddr *addr, socklen_t *addrlen) {
 	RpcDebugLog << "this is hook accept";
   int sockfd = fd_event->getFd();
   if (tinyrpc::Coroutine::IsMainCoroutine()) {
@@ -154,9 +166,31 @@ int accept_hook(tinyrpc::FdEvent::ptr fd_event, struct sockaddr *addr, socklen_t
 	fd_event->setNonBlock();
 
   int n = g_sys_accept_fun(sockfd, addr, addrlen);
+  int savedErrno = errno;
   if (n > 0) {
     return n;
-  } 
+  } else {
+	switch (savedErrno)
+	{
+	// EAGAIN的行为?
+	case EAGAIN:
+	case EINTR:
+	case ECONNABORTED:
+	case EPROTO: // ???
+	case EPERM:
+	case EMFILE: // per-process lmit of open file desctiptor ???
+		// expected errors
+		break;
+		// errno = savedErrno;
+		// return n;
+	
+	default:
+	 	std::stringstream ss;
+		ss << __FILE__ << "-" << __func__ << "-" << __LINE__ <<  ", errno " << errno << ", " << strerror(errno) << "\n";
+		throw(ss.str());
+		Exit(0);
+	}
+  }
 
 	toEpoll(fd_event, tinyrpc::IOEvent::READ);
 	
@@ -174,7 +208,7 @@ int accept_hook(tinyrpc::FdEvent::ptr fd_event, struct sockaddr *addr, socklen_t
 
 }
 
-ssize_t write_hook(tinyrpc::FdEvent::ptr fd_event, const void *buf, size_t count) {
+ssize_t write_hook(tinyrpc::FdEvent::sptr fd_event, const void *buf, size_t count) {
 	RpcDebugLog << "this is hook write";
   int fd = fd_event->getFd();
   if (tinyrpc::Coroutine::IsMainCoroutine()) {
@@ -195,10 +229,21 @@ ssize_t write_hook(tinyrpc::FdEvent::ptr fd_event, const void *buf, size_t count
 
 	fd_event->setNonBlock();
 
-  ssize_t n = g_sys_write_fun(fd, buf, count);
-  if (n > 0) {
-    return n;
-  }
+  // ssize_t n = g_sys_write_fun(fd, buf, count);
+  // int savedErrno = errno;
+  // if (n > 0) {
+    // return n;
+  // } else {
+	// if (n == 0 || (n < 0 && savedErrno == EAGAIN)) {
+		// errno = savedErrno;
+		// return n;
+	// } else if (savedErrno != EINTR) {
+		// std::stringstream ss;
+		// ss << __FILE__ << "-" << __func__ << "-" << __LINE__ <<  ", errno " << errno << ", " << strerror(errno) << "\n";
+		// throw(ss.str());
+		// Exit(0);
+	// }
+  // }
 
 	toEpoll(fd_event, tinyrpc::IOEvent::WRITE);
 
@@ -217,12 +262,14 @@ ssize_t write_hook(tinyrpc::FdEvent::ptr fd_event, const void *buf, size_t count
 }
 
 // client调用, 那么tinyrpc::Coroutine::IsMainCoroutine()==true, 即不进入协程圈
-int connect_hook(tinyrpc::FdEvent::ptr fd_event, const struct sockaddr *addr, socklen_t addrlen) {
+// 由于connect成功返回0，因此我们可以返回errno
+int connect_hook(tinyrpc::FdEvent::sptr fd_event, const struct sockaddr *addr, socklen_t addrlen) {
 	RpcDebugLog << "this is hook connect";
   int sockfd = fd_event->getFd();
   if (tinyrpc::Coroutine::IsMainCoroutine()) {
     RpcDebugLog << "hook disable, call sys connect func";
     return g_sys_connect_fun(sockfd, addr, addrlen);
+    // return details::connect_withoutHook_withErrnoHandle(sockfd, addr, addrlen);
   }
 	tinyrpc::Reactor* reactor = tinyrpc::Reactor::GetReactor();
 	// assert(reactor != nullptr);
@@ -239,12 +286,25 @@ int connect_hook(tinyrpc::FdEvent::ptr fd_event, const struct sockaddr *addr, so
 	
 	fd_event->setNonBlock();
   int n = g_sys_connect_fun(sockfd, addr, addrlen);
+	int savedErrno = errno;
   if (n == 0) {
     RpcDebugLog << "direct connect succ, return";
-    return n;
-  } else if (errno != EINPROGRESS) {
-		RpcDebugLog << "connect error and errno is't EINPROGRESS, errno=" << errno <<  ",error=" << strerror(errno);
-    return n;
+    return 0;
+  } else if (n < 0) {
+	switch (savedErrno) {
+	case EINPROGRESS:
+		return savedErrno;
+
+	case EINTR:
+	 	break;
+
+	case EISCONN:
+	default:
+		std::stringstream ss;
+		ss << __FILE__ << "-" << __func__ << "-" << __LINE__ <<  ", errno " << errno << ", " << strerror(errno) << "\n";
+		throw(ss.str());
+		Exit(0);
+	}
   }
 
 	RpcDebugLog << "errno == EINPROGRESS";
@@ -260,7 +320,7 @@ int connect_hook(tinyrpc::FdEvent::ptr fd_event, const struct sockaddr *addr, so
 		tinyrpc::Coroutine::Resume(cur_cor);
   };
 
-  tinyrpc::TimerEvent::ptr event = std::make_shared<tinyrpc::TimerEvent>(m_max_connect_timeout, false, timeout_cb);
+  tinyrpc::TimerEvent::sptr event = std::make_shared<tinyrpc::TimerEvent>(m_max_connect_timeout, false, timeout_cb);
   
   tinyrpc::Timer* timer = reactor->getTimer();  
   timer->addTimerEvent(event);
@@ -277,10 +337,16 @@ int connect_hook(tinyrpc::FdEvent::ptr fd_event, const struct sockaddr *addr, so
 	timer->delTimerEvent(event);
 
 	n = g_sys_connect_fun(sockfd, addr, addrlen);
-	if ((n < 0 && errno == EISCONN) || n == 0) {
-		RpcDebugLog << "connect succ";
+	// if ((n < 0 && errno == EISCONN) || n == 0) {
+		// RpcDebugLog << "connect succ";
+		// return 0;
+	// }
+	savedErrno = errno;
+	if (n == 0) {
+		RpcDebugLog << "direct connect succ, return";
 		return 0;
 	}
+		
 
 	if (is_timeout) {
     RpcErrorLog << "connect error,  timeout[ " << m_max_connect_timeout << "ms]";
@@ -288,7 +354,7 @@ int connect_hook(tinyrpc::FdEvent::ptr fd_event, const struct sockaddr *addr, so
 	} 
 
 	RpcDebugLog << "connect error and errno=" << errno <<  ", error=" << strerror(errno);
-	return -1;
+	return savedErrno; 
 
 }
 
@@ -310,7 +376,7 @@ unsigned int sleep_hook(unsigned int seconds) {
 		tinyrpc::Coroutine::Resume(cur_cor);
   };
 
-  tinyrpc::TimerEvent::ptr event = std::make_shared<tinyrpc::TimerEvent>(1000 * seconds, false, timeout_cb);
+  tinyrpc::TimerEvent::sptr event = std::make_shared<tinyrpc::TimerEvent>(1000 * seconds, false, timeout_cb);
   
   // 进入非主线程的reactor(执行函数流的线程), 然后可以切换协程
   tinyrpc::Reactor::GetReactor()->getTimer()->addTimerEvent(event);
@@ -336,7 +402,7 @@ unsigned int sleep_hook(unsigned int seconds) {
 
 
 // // 如果设置了钩子，那么使用accept_hook，否则使用g_sys_fun=>从共享库中调用系统函数
-// int accept(tinyrpc::FdEvent::ptr fd_event, struct sockaddr *addr, socklen_t *addrlen) {
+// int accept(tinyrpc::FdEvent::sptr fd_event, struct sockaddr *addr, socklen_t *addrlen) {
 	// if (!tinyrpc::g_hook) {
 		// return g_sys_accept_fun(fd_event->getFd(), addr, addrlen);
 	// } else {
@@ -344,7 +410,7 @@ unsigned int sleep_hook(unsigned int seconds) {
 	// }
 // }
 
-// ssize_t read(tinyrpc::FdEvent::ptr fd_event, void *buf, size_t count) {
+// ssize_t read(tinyrpc::FdEvent::sptr fd_event, void *buf, size_t count) {
 	// if (!tinyrpc::g_hook) {
 		// return g_sys_read_fun(fd_event->getFd(), buf, count);
 	// } else {
@@ -352,7 +418,7 @@ unsigned int sleep_hook(unsigned int seconds) {
 	// }
 // }
 
-// ssize_t write(tinyrpc::FdEvent::ptr fd_event, const void *buf, size_t count) {
+// ssize_t write(tinyrpc::FdEvent::sptr fd_event, const void *buf, size_t count) {
 	// if (!tinyrpc::g_hook) {
 		// return g_sys_write_fun(fd_event->getFd(), buf, count);
 	// } else {
@@ -360,7 +426,7 @@ unsigned int sleep_hook(unsigned int seconds) {
 	// }
 // }
 
-// int connect(tinyrpc::FdEvent::ptr fd_event, const struct sockaddr *addr, socklen_t addrlen) {
+// int connect(tinyrpc::FdEvent::sptr fd_event, const struct sockaddr *addr, socklen_t addrlen) {
 	// if (!tinyrpc::g_hook) {
 		// return g_sys_connect_fun(fd_event->getFd(), addr, addrlen);
 	// } else {

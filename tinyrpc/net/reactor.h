@@ -31,13 +31,12 @@ class FdEvent;
 class Timer;
 class CoroutineTaskQueue;
 
-// typedef std::shared_ptr<Timer> TimerPtr;
 
 class Reactor {
 
  public:
 
-  typedef std::shared_ptr<Reactor> ptr;
+  typedef std::shared_ptr<Reactor> sptr;
 
   explicit Reactor();
 
@@ -51,7 +50,7 @@ class Reactor {
 
   void addTask(std::vector<std::function<void()>> task, bool is_wakeup = true);
   
-  void addCoroutine(tinyrpc::Coroutine::ptr cor, bool is_wakeup = true);
+  void addCoroutine(tinyrpc::Coroutine::sptr cor, bool is_wakeup = true);
 
   void wakeup();
   
@@ -109,6 +108,11 @@ class Reactor {
 
 
 class CoroutineTaskQueue {
+
+ public:
+  typedef std::shared_ptr<CoroutineTaskQueue> sptr;
+  typedef std::weak_ptr<CoroutineTaskQueue> wptr;
+
  public:
 
   void push(FdEvent* fd);

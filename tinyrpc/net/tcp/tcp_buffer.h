@@ -11,7 +11,7 @@ namespace tinyrpc {
 class TcpBuffer {
  
  public:
-  typedef std::shared_ptr<TcpBuffer> ptr;
+  typedef std::shared_ptr<TcpBuffer> sptr;
 
   explicit TcpBuffer(int size);
   

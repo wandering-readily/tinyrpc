@@ -17,10 +17,10 @@ class HttpDispacther : public AbstractDispatcher {
 
   void dispatch(AbstractData* data, TcpConnection* conn);
 
-  void registerServlet(const std::string& path, HttpServlet::ptr servlet);
+  void registerServlet(const std::string& path, HttpServlet::sptr servlet);
 
  public:
-  std::map<std::string, HttpServlet::ptr> m_servlets;
+  std::map<std::string, HttpServlet::sptr> m_servlets;
 };
 
 

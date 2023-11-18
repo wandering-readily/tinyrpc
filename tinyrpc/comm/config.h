@@ -26,7 +26,7 @@ enum class LogLevel {
 class Config {
 
  public:
-  typedef std::shared_ptr<Config> ptr;
+  typedef std::shared_ptr<Config> sptr;
 
   Config(const char* file_path);
 
@@ -69,7 +69,7 @@ private:
 
   std::string protocalName;
   ProtocalType protocal;
-  std::shared_ptr<NetAddress> addr;
+  NetAddress::sptr addr;
 
   #ifdef DECLARE_MYSQL_PLUGIN 
   std::map<std::string, MySQLOption> m_mysql_options;

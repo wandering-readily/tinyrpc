@@ -16,9 +16,10 @@ namespace tinyrpc {
 class NetAddress {
 
  public:
+  typedef std::shared_ptr<NetAddress> sptr;
 
-  typedef std::shared_ptr<NetAddress> ptr;
-  
+ public:
+
   virtual sockaddr* getSockAddr() = 0;
 	
   virtual int getFamily() const = 0;

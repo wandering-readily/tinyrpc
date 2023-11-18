@@ -13,7 +13,7 @@ namespace tinyrpc {
 class TinyPbRpcController : public google::protobuf::RpcController {
 
  public:
-  typedef std::shared_ptr<TinyPbRpcController> ptr;
+  typedef std::shared_ptr<TinyPbRpcController> sptr;
   // Client-side methods ---------------------------------------------
 
   TinyPbRpcController() = default;
@@ -50,13 +50,13 @@ class TinyPbRpcController : public google::protobuf::RpcController {
 
   void SetError(const int err_code, const std::string& err_info);
 
-  void SetPeerAddr(NetAddress::ptr addr);
+  void SetPeerAddr(NetAddress::sptr addr);
 
-  void SetLocalAddr(NetAddress::ptr addr);
+  void SetLocalAddr(NetAddress::sptr addr);
 
-  NetAddress::ptr PeerAddr();
+  NetAddress::sptr PeerAddr();
   
-  NetAddress::ptr LocalAddr();
+  NetAddress::sptr LocalAddr();
 
   void SetTimeout(const int timeout);
 
@@ -78,8 +78,8 @@ class TinyPbRpcController : public google::protobuf::RpcController {
   std::string m_msg_req;          // msg_req, identify once rpc request and response
   bool m_is_failed {false}; 
   bool m_is_cancled {false};
-  NetAddress::ptr m_peer_addr;
-  NetAddress::ptr m_local_addr;
+  NetAddress::sptr m_peer_addr;
+  NetAddress::sptr m_local_addr;
 
   int m_timeout {5000};           // max call rpc timeout
   std::string m_method_name;      // method name

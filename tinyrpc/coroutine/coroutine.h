@@ -17,7 +17,7 @@ void setCurrentRunTime(RunTime* v);
 class Coroutine {
 
  public:
-  typedef std::shared_ptr<Coroutine> ptr;
+  typedef std::shared_ptr<Coroutine> sptr;
 
  private:
 

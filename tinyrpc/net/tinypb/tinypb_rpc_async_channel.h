@@ -12,6 +12,11 @@
 namespace tinyrpc {
 
 class AsyncCor_Waiter {
+ 
+  
+ public:
+  typedef std::shared_ptr<AsyncCor_Waiter> sptr;
+
  public:
 
   virtual void wait() = 0;
@@ -25,12 +30,12 @@ class TinyPbRpcAsyncChannel \
     public AsyncCor_Waiter {
 
  public:
-  typedef std::shared_ptr<TinyPbRpcAsyncChannel> ptr;
-  typedef std::shared_ptr<google::protobuf::RpcController> con_ptr;
-  typedef std::shared_ptr<google::protobuf::Message> msg_ptr;
-  typedef std::shared_ptr<google::protobuf::Closure> clo_ptr;
+  typedef std::shared_ptr<TinyPbRpcAsyncChannel> sptr;
+  typedef std::shared_ptr<google::protobuf::RpcController> con_sptr;
+  typedef std::shared_ptr<google::protobuf::Message> msg_sptr;
+  typedef std::shared_ptr<google::protobuf::Closure> clo_sptr;
 
-  TinyPbRpcAsyncChannel(NetAddress::ptr);
+  TinyPbRpcAsyncChannel(NetAddress::sptr);
   ~TinyPbRpcAsyncChannel();
 
   void CallMethod(const google::protobuf::MethodDescriptor* method, 
@@ -44,7 +49,7 @@ class TinyPbRpcAsyncChannel \
 
   // must call saveCallee before CallMethod
   // in order to save shared_ptr count of req res controller
-  void saveCallee(con_ptr controller, msg_ptr req, msg_ptr res, clo_ptr closure, \
+  void saveCallee(con_sptr controller, msg_sptr req, msg_sptr res, clo_sptr closure, \
     std::weak_ptr<CoroutinePool>, IOThread *);
 
   virtual void wait();
@@ -71,8 +76,8 @@ class TinyPbRpcAsyncChannel \
 
 
  private:
-  TinyPbRpcChannel::ptr m_rpc_channel;
-  Coroutine::ptr m_pending_cor;
+  TinyPbRpcChannel::sptr m_rpc_channel;
+  Coroutine::sptr m_pending_cor;
   Coroutine* m_current_cor {NULL};
   IOThread* m_current_iothread {NULL};
   IOThread* m_chosed_iothread {NULL};
@@ -83,10 +88,10 @@ class TinyPbRpcAsyncChannel \
   bool m_is_pre_set {false};
 
  private:
-  con_ptr m_controller;
-  msg_ptr m_req;
-  msg_ptr m_res;
-  clo_ptr m_closure;
+  con_sptr m_controller;
+  msg_sptr m_req;
+  msg_sptr m_res;
+  clo_sptr m_closure;
 
   std::weak_ptr<CoroutinePool> weakCorPool_;
 

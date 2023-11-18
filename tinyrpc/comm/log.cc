@@ -32,17 +32,19 @@
 namespace tinyrpc {
 
 class Logger;
-extern std::shared_ptr<Logger> gRpcLogger;
+extern Logger::sptr gRpcLogger;
 
 bool OpenLogger() {
-  return gRpcLogger != nullptr;
+  // 减少logger多余的文件, 以免堵塞服务器
+  return false;
+  // return gRpcLogger != nullptr;
 }
 
 std::shared_ptr<Logger> GetGRpcLogger() {
   return gRpcLogger;
 }
 
-LogTmp::LogTmp(LogLevel level, LogEvent::ptr event) : m_level(level), m_event(event) {}
+LogTmp::LogTmp(LogLevel level, LogEvent::sptr event) : m_level(level), m_event(event) {}
 
 LogTmp::~LogTmp() {
   std::string content = m_event->toString();
@@ -50,7 +52,7 @@ LogTmp::~LogTmp() {
 }
 
 
-LogInGrpcLogger::LogInGrpcLogger(LogEvent::ptr event) : m_event(event) {}
+LogInGrpcLogger::LogInGrpcLogger(LogEvent::sptr event) : m_event(event) {}
 
 LogInGrpcLogger::~LogInGrpcLogger() {
   m_event->log(); 
@@ -271,7 +273,7 @@ void Logger::init(const char* file_name, const char* file_path, int max_size, in
 // ???
 // 加入reactor
 void Logger::start() {
-  TimerEvent::ptr event = std::make_shared<TimerEvent>(m_sync_inteval, true, std::bind(&Logger::loopFunc, this));
+  TimerEvent::sptr event = std::make_shared<TimerEvent>(m_sync_inteval, true, std::bind(&Logger::loopFunc, this));
   Reactor::GetReactor()->getTimer()->addTimerEvent(event);
 }
 	

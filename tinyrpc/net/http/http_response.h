@@ -11,7 +11,7 @@ namespace tinyrpc {
 
 class HttpResponse : public AbstractData {
  public:
-  typedef std::shared_ptr<HttpResponse> ptr; 
+  typedef std::shared_ptr<HttpResponse> sptr; 
 
  public:
   std::string m_response_version;   

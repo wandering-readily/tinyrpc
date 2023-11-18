@@ -10,13 +10,13 @@ namespace tinyrpc {
 template<class T>
 class AbstractSlot {
  public:
-  typedef std::shared_ptr<AbstractSlot> ptr;
+  typedef std::shared_ptr<AbstractSlot> sptr;
   typedef std::weak_ptr<T> weakPtr;
   typedef std::shared_ptr<T> sharedPtr;
 
   typedef std::shared_ptr<AbstractSlot<T>> anptr;
 
-  AbstractSlot(weakPtr ptr, std::function<void(sharedPtr)> cb) : m_weak_ptr(ptr), m_cb(cb) {
+  AbstractSlot(weakPtr ptr, std::function<void(sharedPtr)> cb) : m_weak_ptr(ptr), m_cb(std::move(cb)) {
 
   }
   ~AbstractSlot() {

@@ -91,14 +91,18 @@ void FdEvent::updateToReactor() {
 
   // reactor添加事件
   m_reactor->addEvent(m_fd, event);
+  fdInReactor = true;
 }
 
 void FdEvent::unregisterFromReactor () {
-  if (!m_reactor) {
-    m_reactor = tinyrpc::Reactor::GetReactor();
+  if (fdInReactor) {
+    if (!m_reactor) {
+      m_reactor = tinyrpc::Reactor::GetReactor();
+    }
+    // 删除事件
+    m_reactor->delEvent(m_fd);
   }
-  // 删除事件
-  m_reactor->delEvent(m_fd);
+  fdInReactor = false;
   m_listen_events = 0;
   m_read_callback = nullptr;
   m_write_callback = nullptr;
@@ -171,18 +175,18 @@ Coroutine* FdEvent::getCoroutine() {
 
 
 
-FdEvent::ptr FdEventContainer::getFdEvent(int fd) {
+FdEvent::sptr FdEventContainer::getFdEvent(int fd) {
   
   // 也就是说m_fds是线性数组，fd和m_fds的下标一一对应
   {
   RWMutex::ReadLock rlock(m_mutex);
   if (fd < static_cast<int>(m_fds.size())) {
-    tinyrpc::FdEvent::ptr re = m_fds[fd]; 
+    tinyrpc::FdEvent::sptr re = m_fds[fd]; 
     return re;
   }
   }
 
-  tinyrpc::FdEvent::ptr re;
+  tinyrpc::FdEvent::sptr re;
   {
   RWMutex::WriteLock wlock(m_mutex);
   int n = (int)(fd * 1.5);

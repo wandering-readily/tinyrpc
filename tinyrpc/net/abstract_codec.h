@@ -16,9 +16,10 @@ enum class ProtocalType {
 
 class AbstractCodeC {
 
- public:
-  typedef std::shared_ptr<AbstractCodeC> ptr;
+ public: 
+  typedef std::shared_ptr<AbstractCodeC> sptr;
 
+ public:
   AbstractCodeC() {}
 
   virtual ~AbstractCodeC() {}

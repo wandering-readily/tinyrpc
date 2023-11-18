@@ -20,12 +20,12 @@ CoroutinePool::CoroutinePool(int pool_size, int stack_size /*= 1024 * 128 B*/) \
   // 从分配的Memory设置内存
   m_memory_pool.push_back(std::make_shared<Memory>(stack_size, pool_size));
 
-  Memory::ptr tmp = m_memory_pool[0];
+  Memory::sptr tmp = m_memory_pool[0];
 
   for (int i = 0; i < pool_size; ++i) {
     // 需要得到非NULL的stack_ptr
     // 协程shared_ptr
-    Coroutine::ptr cor = std::make_shared<Coroutine>(stack_size, tmp->getBlock());
+    Coroutine::sptr cor = std::make_shared<Coroutine>(stack_size, tmp->getBlock());
     cor->setIndex(i);
     m_free_cors.push_back(std::make_pair(cor, false));
   }
@@ -34,7 +34,7 @@ CoroutinePool::CoroutinePool(int pool_size, int stack_size /*= 1024 * 128 B*/) \
 
 CoroutinePool::~CoroutinePool() {}
 
-Coroutine::ptr CoroutinePool::getCoroutineInstanse() {
+Coroutine::sptr CoroutinePool::getCoroutineInstanse() {
 
   // from 0 to find first free coroutine which: 1. it.second = false, 2. getIsInCoFunc() is false
   // try our best to reuse used corroutine, and try our best not to choose unused coroutine
@@ -47,7 +47,7 @@ Coroutine::ptr CoroutinePool::getCoroutineInstanse() {
     // 如果一个协程没有在使用
     if (!m_free_cors[i].first->getIsInCoFunc() && !m_free_cors[i].second) {
       m_free_cors[i].second = true;
-      Coroutine::ptr cor = m_free_cors[i].first;
+      Coroutine::sptr cor = m_free_cors[i].first;
       return cor;
     }
   }
@@ -57,7 +57,7 @@ Coroutine::ptr CoroutinePool::getCoroutineInstanse() {
   for (size_t i = 1; i < m_memory_pool.size(); ++i) {
     char* tmp = m_memory_pool[i]->getBlock();
     if(tmp) {
-      Coroutine::ptr cor = std::make_shared<Coroutine>(m_stack_size, tmp);
+      Coroutine::sptr cor = std::make_shared<Coroutine>(m_stack_size, tmp);
       return cor;
     }    
   }
@@ -67,7 +67,7 @@ Coroutine::ptr CoroutinePool::getCoroutineInstanse() {
 }
 
 // 返回协程
-void CoroutinePool::returnCoroutine(Coroutine::ptr cor) {
+void CoroutinePool::returnCoroutine(Coroutine::sptr cor) {
   int i = cor->getIndex();
   if (i >= 0 && i < m_pool_size) {
     // 如果是固定分配时，直接不使用便可

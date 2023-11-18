@@ -10,7 +10,7 @@ namespace tinyrpc {
 
 class Memory {
  public:
-  typedef std::shared_ptr<Memory> ptr;
+  typedef std::shared_ptr<Memory> sptr;
 
   Memory(int block_size, int block_count);
 

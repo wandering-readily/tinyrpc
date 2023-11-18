@@ -17,7 +17,7 @@ class TinyPbRpcDispacther : public AbstractDispatcher {
  public:
 
   // typedef std::shared_ptr<TinyPbRpcDispacther> ptr;
-  typedef std::shared_ptr<google::protobuf::Service> service_ptr;
+  typedef std::shared_ptr<google::protobuf::Service> service_sptr;
 
   TinyPbRpcDispacther() = default;
   ~TinyPbRpcDispacther() = default;
@@ -26,13 +26,13 @@ class TinyPbRpcDispacther : public AbstractDispatcher {
 
   bool parseServiceFullName(const std::string& full_name, std::string& service_name, std::string& method_name);
 
-  void registerService(service_ptr service);
+  void registerService(service_sptr service);
 
  public:
 
   // all services should be registerd on there before progress start
   // key: service_name
-  std::map<std::string, service_ptr> m_service_map;
+  std::map<std::string, service_sptr> m_service_map;
 
 };
 

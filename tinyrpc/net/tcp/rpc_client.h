@@ -10,31 +10,32 @@
 #include "tinyrpc/net/tcp/tcp_connection.h"
 #include "tinyrpc/net/abstract_codec.h"
 
+
 namespace tinyrpc {
 
+class LightTimerPool;
+class LightTimer;
 
 //
 // You should use TcpClient in a coroutine(not main coroutine)
 //
 class RpcClient {
  public:
-  typedef std::shared_ptr<TcpClient> ptr;
+  typedef std::shared_ptr<RpcClient> sptr;
+  typedef std::weak_ptr<RpcClient> wptr;
 
   RpcClient(ProtocalType type = tinyrpc::ProtocalType::TinyPb_Protocal);
 
   ~RpcClient();
 
-  bool connect(NetAddress::ptr);
+  bool connect(NetAddress::sptr);
 
   int resetFd(int);
 
-  int sendAndRecvTinyPb(const std::string& msg_no, TinyPbStruct::pb_ptr& res);
+  TcpConnection::sptr getConnection(NetAddress::sptr);
 
-  TcpConnection* getConnection(NetAddress::ptr);
-  TcpConnection* getConnection(const std::string &);
-
-  int sendAndRecvTinyPb(NetAddress::ptr, \
-    const std::string&, TinyPbStruct::pb_ptr&);
+  int sendAndRecvTinyPb(NetAddress::sptr, \
+    const std::string&, TinyPbStruct::pb_sptr&);
 
   void setTimeout(const int v) {
     m_max_timeout = v;
@@ -48,31 +49,32 @@ class RpcClient {
     return m_err_info;
   }
 
-  NetAddress::ptr getLocalAddr() const {
+  NetAddress::sptr getLocalAddr() const {
     return local_addr_;
   }
 
-  AbstractCodeC::ptr getCodeC() {
-    return codec_;
-  }
+  bool delConnection(NetAddress::sptr);
 
+  AbstractCodeC::sptr getCodec() {return codec_;}
 
  private:
 
   int m_try_counts {3};         // max try reconnect times
   int m_max_timeout {10000};       // max connect timeout, ms
-  bool m_is_stop {false};
   std::string m_err_info;      // error info of client
 
-  NetAddress::ptr local_addr_ {nullptr};
-  Reactor* reactor_ {nullptr};
+  NetAddress::sptr local_addr_ {nullptr};
 
   // peer_addr --> connection
-  std::map<std::string, TcpConnection::ptr> connections_;
+  // 增减connection不符合多线程安全
+  // rpcClient 不符合多线程安全
+  std::map<std::string, TcpConnection::sptr> connections_;
 
-  AbstractCodeC::ptr codec_ {nullptr};
+  AbstractCodeC::sptr codec_ {nullptr};
 
-  std::shared_ptr<FdEventContainer> fdEventPool_;
+  FdEventContainer::sptr fdEventPool_;
+
+  std::shared_ptr<LightTimerPool> lightTimerPool_;
 
 }; 
 

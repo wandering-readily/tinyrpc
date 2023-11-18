@@ -23,7 +23,7 @@
 
 namespace tinyrpc {
 
-TinyPbRpcAsyncChannel::TinyPbRpcAsyncChannel(NetAddress::ptr addr) {
+TinyPbRpcAsyncChannel::TinyPbRpcAsyncChannel(NetAddress::sptr addr) {
   m_rpc_channel = std::make_shared<TinyPbRpcChannel>(addr);
   m_current_iothread = IOThread::GetCurrentIOThread();
   m_current_cor = Coroutine::GetCurrentCoroutine();
@@ -38,11 +38,8 @@ TinyPbRpcAsyncChannel::TinyPbRpcAsyncChannel(NetAddress::ptr addr) {
 TinyPbRpcAsyncChannel::~TinyPbRpcAsyncChannel() {
   // RpcDebugLog << "~TinyPbRpcAsyncChannel(), return coroutine";
   if (m_pending_cor) {
-    std::shared_ptr<tinyrpc::CoroutinePool> corPool = weakCorPool_.lock();
-    if (!corPool) [[unlikely]]
-    {
-      Exit(0);
-    }
+    tinyrpc::CoroutinePool::sptr corPool = weakCorPool_.lock();
+    assert(corPool != nullptr && "corPool had released");
     corPool->returnCoroutine(m_pending_cor);
   }
 
@@ -58,9 +55,9 @@ TinyPbRpcChannel* TinyPbRpcAsyncChannel::getRpcChannel() {
 /*
  * 在 RPC 调用前必须调用 TinyPbRpcAsyncChannel::saveCallee(), 提前预留资源的引用计数
  */
-void TinyPbRpcAsyncChannel::saveCallee(con_ptr controller, \
-    msg_ptr req, msg_ptr res, clo_ptr closure, \
-    std::weak_ptr<CoroutinePool> corPool, 
+void TinyPbRpcAsyncChannel::saveCallee(con_sptr controller, \
+    msg_sptr req, msg_sptr res, clo_sptr closure, \
+    CoroutinePool::wptr corPool, 
     IOThread *thread) {
   m_controller = controller;
   m_req = req;
@@ -95,7 +92,7 @@ void TinyPbRpcAsyncChannel::CallMethod(const google::protobuf::MethodDescriptor*
     RpcDebugLog << "get from RunTime error, generate new msgno=" << rpc_controller->MsgSeq();
   }
 
-  std::shared_ptr<TinyPbRpcAsyncChannel> s_ptr = shared_from_this();
+  TinyPbRpcAsyncChannel::sptr s_ptr = shared_from_this();
 
   auto cb = [s_ptr, method]() mutable {
     // 1. 完成rpcChannel的callMethod()任务
@@ -139,11 +136,8 @@ void TinyPbRpcAsyncChannel::CallMethod(const google::protobuf::MethodDescriptor*
   // 转换进去m_pending_cor 将作为cb放入任一线程(但是不能在本线程当中)
   // m_pending_cor = GetServer()->getIOThreadPool()->addCoroutineToRandomThread(cb, false);
 
-  std::shared_ptr<tinyrpc::CoroutinePool> corPool = weakCorPool_.lock();
-  if (!corPool) [[unlikely]]
-  {
-    Exit(0);
-  }
+  tinyrpc::CoroutinePool::sptr corPool = weakCorPool_.lock();
+  assert(corPool != nullptr && "corPool had released");
   m_pending_cor = corPool->getCoroutineInstanse();
   m_pending_cor->setCallBack(cb);
   m_chosed_iothread->getReactor()->addCoroutine(m_pending_cor, true);

@@ -22,8 +22,8 @@ class TcpAcceptor {
 
  public:
 
-  typedef std::shared_ptr<TcpAcceptor> ptr;
-  TcpAcceptor(NetAddress::ptr, std::weak_ptr<FdEventContainer>);
+  typedef std::shared_ptr<TcpAcceptor> sptr;
+  TcpAcceptor(NetAddress::sptr, FdEventContainer::wptr);
 
   void init();
 
@@ -31,11 +31,11 @@ class TcpAcceptor {
 
   ~TcpAcceptor();
 
-  NetAddress::ptr getPeerAddr() {
+  NetAddress::sptr getPeerAddr() {
     return m_peer_addr;
   }
 
-  NetAddress::ptr geLocalAddr() {
+  NetAddress::sptr geLocalAddr() {
     return m_local_addr;
   }
  
@@ -43,10 +43,10 @@ class TcpAcceptor {
   int m_family {-1};
   int m_fd {-1};
 
-  NetAddress::ptr m_local_addr {nullptr};
-  NetAddress::ptr m_peer_addr {nullptr};
+  NetAddress::sptr m_local_addr {nullptr};
+  NetAddress::sptr m_peer_addr {nullptr};
 
-  std::weak_ptr<FdEventContainer> weakFdEventPool_;
+  FdEventContainer::wptr weakFdEventPool_;
 
 };
 
@@ -55,45 +55,45 @@ class TcpServer {
 
  public:
 
-  typedef std::shared_ptr<TcpServer> ptr;
+  typedef std::shared_ptr<TcpServer> sptr;
 
-	// TcpServer(NetAddress::ptr addr, ProtocalType type = TinyPb_Protocal);
+	// TcpServer(NetAddress::sptr addr, ProtocalType type = TinyPb_Protocal);
 	TcpServer(Config *config, \
     std::weak_ptr<CoroutinePool>, \
-    std::weak_ptr<FdEventContainer>, \
-    std::weak_ptr<CoroutineTaskQueue>);
+    FdEventContainer::wptr, \
+    CoroutineTaskQueue::wptr);
 
   ~TcpServer();
 
   void start();
 
-  void addCoroutine(tinyrpc::Coroutine::ptr cor);
+  void addCoroutine(tinyrpc::Coroutine::sptr cor);
 
   bool registerService(std::shared_ptr<google::protobuf::Service> service);
 
-  bool registerHttpServlet(const std::string& url_path, HttpServlet::ptr servlet);
+  bool registerHttpServlet(const std::string& url_path, HttpServlet::sptr servlet);
 
-  TcpConnection::ptr addClient(IOThread* io_thread, int fd);
+  TcpConnection::sptr addClient(IOThread* io_thread, int fd);
 
-  void freshTcpConnection(TcpTimeWheel::TcpConnectionSlot::ptr slot);
+  void freshTcpConnection(TcpTimeWheel::TcpConnectionSlot::sptr slot);
 
-  IOThreadPool::ptr getSharedIOThreadPool() {return m_io_pool;}
+  IOThreadPool::sptr getSharedIOThreadPool() {return m_io_pool;}
 
   int64_t getConnectAliveTime() const {return connectAliveTime_;}
 
 
  public:
-  AbstractDispatcher::ptr getDispatcher();
+  AbstractDispatcher::sptr getDispatcher();
 
-  AbstractCodeC::ptr getCodec();
+  AbstractCodeC::sptr getCodec();
 
-  NetAddress::ptr getPeerAddr();
+  NetAddress::sptr getPeerAddr();
 
-  NetAddress::ptr getLocalAddr();
+  NetAddress::sptr getLocalAddr();
 
-  IOThreadPool::ptr getIOThreadPool();
+  IOThreadPool::sptr getIOThreadPool();
 
-  TcpTimeWheel::ptr getTimeWheel();
+  TcpTimeWheel::sptr getTimeWheel();
 
 
  private:
@@ -103,9 +103,9 @@ class TcpServer {
 
  private:
   
-  NetAddress::ptr m_addr;
+  NetAddress::sptr m_addr;
 
-  TcpAcceptor::ptr m_acceptor;
+  TcpAcceptor::sptr m_acceptor;
 
   int m_tcp_counts {0};
 
@@ -113,25 +113,25 @@ class TcpServer {
 
   bool m_is_stop_accept {false};
 
-  Coroutine::ptr m_accept_cor;
+  Coroutine::sptr m_accept_cor;
   
-  AbstractDispatcher::ptr m_dispatcher;
+  AbstractDispatcher::sptr m_dispatcher;
 
-  AbstractCodeC::ptr m_codec;
+  AbstractCodeC::sptr m_codec;
 
-  IOThreadPool::ptr m_io_pool;
+  IOThreadPool::sptr m_io_pool;
 
   ProtocalType m_protocal_type {tinyrpc::ProtocalType::TinyPb_Protocal};
 
-  TcpTimeWheel::ptr m_time_wheel;
+  TcpTimeWheel::sptr m_time_wheel;
 
-  std::map<int, std::shared_ptr<TcpConnection>> m_clients;
+  std::map<int, TcpConnection::sptr> m_clients;
 
-  TimerEvent::ptr m_clear_clent_timer_event {nullptr};
+  TimerEvent::sptr m_clear_clent_timer_event {nullptr};
 
   std::weak_ptr<CoroutinePool> weakCorPool_;
 
-  std::weak_ptr<FdEventContainer> weakFdEventPool_;
+  FdEventContainer::wptr weakFdEventPool_;
 
   int64_t connectAliveTime_ = 10 * 10 * 1000;
 

@@ -10,7 +10,7 @@ namespace tinyrpc {
 
 // interval是毫秒
 LightTimer::LightTimer(int interval, std::function<void(void)> cb, \
-    std::shared_ptr<LightTimerPool> timerPool) \
+    LightTimerPool::sptr timerPool) \
     : cb_(cb), weakLightTimerPool_(timerPool) {
 
   sem_init(&sem_waitAddInLoop, 0, 0);
@@ -26,16 +26,20 @@ LightTimer::LightTimer(int interval, std::function<void(void)> cb, \
 }
 
 bool LightTimer::registerInLoop() {
-  std::shared_ptr<LightTimerPool> timerPool = weakLightTimerPool_.lock();
-  if (!timerPool) [[unlikely]] {
-    return false;
-  }
-  if (!timerPool->addLightTimer(shared_from_this())) [[unlikely]] {
+  LightTimerPool::sptr timerPool = weakLightTimerPool_.lock();
+  assert(timerPool != nullptr && "timerPool had released");
+
+  bool rt = timerPool->addLightTimer(shared_from_this());
+  assert(rt && "timerfd_settime can't fail");
+  if (!rt) [[unlikely]] {
     throw "can't add LightTimer";
     tinyrpc::Exit(0);
   }
+
   sem_wait(getwaitAddInLoopSem());
-  if (timerfd_settime(fd_, 0, &value_, nullptr) != 0) [[unlikely]] {
+
+  int rs = timerfd_settime(fd_, 0, &value_, nullptr);
+  if (rs != 0) [[unlikely]] {
     throw "can't set timer settime";
     tinyrpc::Exit(0);
   }
@@ -43,7 +47,7 @@ bool LightTimer::registerInLoop() {
 }
 
 LightTimer::~LightTimer() {
-  std::shared_ptr<LightTimerPool> timerPool = weakLightTimerPool_.lock();
+  LightTimerPool::sptr timerPool = weakLightTimerPool_.lock();
   if (timerPool) {
     timerPool->delLightTimer(fd_);
   }
@@ -55,17 +59,15 @@ bool LightTimer::resetTimer(std::function<void(void)> cb) {
   if (!called) {
     return false;
   }
-  std::shared_ptr<LightTimerPool> lightTimerPool = weakLightTimerPool_.lock();
+  LightTimerPool::sptr lightTimerPool = weakLightTimerPool_.lock();
   if (!lightTimerPool) {
     return false;
   }
   cb_ = cb;
   called = false;
-  if (!lightTimerPool->addLightTimer(shared_from_this())) [[unlikely]] {
-    throw "can't add LightTimer";
-    tinyrpc::Exit(0);
-  }
-  if (timerfd_settime(fd_, 0, &value_, nullptr) != 0) [[unlikely]] {
+
+  int rs = timerfd_settime(fd_, 0, &value_, nullptr);
+  if (rs != 0) [[unlikely]] {
     throw "can't timer settime";
     tinyrpc::Exit(0);
   }
@@ -73,20 +75,31 @@ bool LightTimer::resetTimer(std::function<void(void)> cb) {
 
 }
 
+void LightTimer::cancel() {
+  struct itimerspec new_value = {};
+  memset(&value_, 0, sizeof(new_value));
+  int rt = timerfd_settime(fd_, 0, &new_value, NULL);
+  assert(rt != -1 && "timerfd_settime can't fail");
+}
+
 LightTimerPool::LightTimerPool() {
-  if((wake_fd_ = eventfd(0, EFD_NONBLOCK)) <= 0 ) [[unlikely]] {
+  wake_fd_ = eventfd(0, EFD_NONBLOCK);
+  if(wake_fd_ <= 0 ) [[unlikely]] {
     throw "can't lightTimerPool create eventfd";
     tinyrpc::Exit(0);
   }
-  if((epfd_ = epoll_create(1)) <= 0 ) [[unlikely]] {
+
+  epfd_ = epoll_create(1);
+  if(epfd_ <= 0 ) [[unlikely]] {
     throw "can't create epoll";
     tinyrpc::Exit(0);
   }
+
   addWakeupFd();
   pthread_create(&poolThread_, nullptr, &LightTimerPool::Loop, this);
 }
 
-bool LightTimerPool::addLightTimer(std::shared_ptr<LightTimer> timer) {
+bool LightTimerPool::addLightTimer(LightTimer::sptr timer) {
   {
     PISP event{timer->getFd(), timer};
     tinyrpc::Mutex::Lock lock(mutex_);
@@ -125,7 +138,8 @@ void LightTimerPool::addWakeupFd() {
   epoll_event event;
   event.data.fd = wake_fd_;
   event.events = EPOLLIN;
-  if ((epoll_ctl(epfd_, op, wake_fd_, &event)) != 0) [[unlikely]] {
+  int rs = epoll_ctl(epfd_, op, wake_fd_, &event);
+  if (rs != 0) [[unlikely]] {
     throw "can't lightTimerPool epoll add wakefd";
     tinyrpc::Exit(0);
   }
@@ -137,13 +151,14 @@ void LightTimerPool::wakeup() {
   }
   uint64_t tmp = 1;
   uint64_t* p = &tmp; 
-  if(write(wake_fd_, p, 8) != 8) [[unlikely]] {
+  int writedBytes = write(wake_fd_, p, 8);
+  if(writedBytes != 8) [[unlikely]] {
     throw "can't lightTimerPool write wake_fd 8 bytes";
     tinyrpc::Exit(0);
   }
 }
 
-bool LightTimerPool::addLightTimerInLoop(int fd, std::shared_ptr<LightTimer> timer) {
+bool LightTimerPool::addLightTimerInLoop(int fd, LightTimer::sptr timer) {
   int op = EPOLL_CTL_ADD;
   bool is_add = true;
   if (lightTimers_.find(fd) != lightTimers_.end()) {
@@ -170,7 +185,8 @@ bool LightTimerPool::addLightTimerInLoop(int fd, std::shared_ptr<LightTimer> tim
 bool LightTimerPool::delLightTimerInLoop(int fd) {
   int op = EPOLL_CTL_DEL;
   
-  if (epoll_ctl(epfd_, op, fd, nullptr) != 0) [[unlikely]] {
+  int rs = epoll_ctl(epfd_, op, fd, nullptr);
+  if (rs != 0) [[unlikely]] {
     return false;
   }
   return true;
@@ -183,12 +199,14 @@ void *LightTimerPool::Loop(void *arg) {
   
   while (!loop->stop_) {
     int rt = epoll_wait(loop->epfd_, re_events, loop->MAX_EVENTS, 0);
+    int savedErrno = errno;
     if (rt < 0) [[unlikely]] {
       printf("errno %d, %s\n", errno, strerror(errno));
-      tinyrpc::Exit(0);
-    } else {
+      if (savedErrno != EINTR) {
+        tinyrpc::Exit(0);
+      }
 
-      auto &timers = loop->lightTimers_;
+    } else {
       for (int i = 0; i < rt; ++i) {
         epoll_event one_event = re_events[i];	
 
@@ -204,8 +222,13 @@ void *LightTimerPool::Loop(void *arg) {
 
         if (one_event.events & EPOLLIN) [[likely]] {
           int fd = one_event.data.fd;
-          if (timers.find(fd) == timers.end()) {
-            continue;
+          LightTimer::sptr timer;
+          {
+            tinyrpc::Mutex::Lock lock(loop->mutex_);
+            if (loop->lightTimers_.find(fd) == loop->lightTimers_.end()) {
+              continue;
+            }
+            timer = loop->lightTimers_[fd].lock();
           } 
 
           char buf[8];
@@ -215,7 +238,6 @@ void *LightTimerPool::Loop(void *arg) {
             }
           }
 
-          std::shared_ptr<LightTimer> timer = timers[fd].lock();
           if (timer) [[likely]] {
             timer->callback();
           }

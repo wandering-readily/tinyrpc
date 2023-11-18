@@ -9,8 +9,8 @@
 #include "tinyrpc/net/mutex.h"
 
 
-tinyrpc::Coroutine::ptr cor;
-tinyrpc::Coroutine::ptr cor2;
+tinyrpc::Coroutine::sptr cor;
+tinyrpc::Coroutine::sptr cor2;
 
 class Test {
 

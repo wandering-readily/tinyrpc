@@ -41,7 +41,7 @@ MySQLInstaseFactroy* MySQLInstaseFactroy::GetThreadMySQLFactory(std::map<std::st
 
 }
 
-MySQLInstase::ptr MySQLInstaseFactroy::GetMySQLInstase(const std::string& key) {
+MySQLInstase::sptr MySQLInstaseFactroy::GetMySQLInstase(const std::string& key) {
   // 因为是m_mysql_option在读取DBConfig后只读，因此可以多线程服务
   auto it2 = m_mysql_options.find(key);
   if (it2 == m_mysql_options.end()) {
@@ -49,7 +49,7 @@ MySQLInstase::ptr MySQLInstaseFactroy::GetMySQLInstase(const std::string& key) {
     return NULL;
   }
   RpcDebugLog << "create MySQLInstase of key " << key;
-  MySQLInstase::ptr instase = std::make_shared<MySQLInstase>(it2->second);
+  MySQLInstase::sptr instase = std::make_shared<MySQLInstase>(it2->second);
   return instase;
 }
 

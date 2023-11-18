@@ -267,12 +267,9 @@ void Reactor::loop() {
       FdEvent* ptr = NULL;
       // ptr->setReactor(NULL);
       while(1) {
-        std::shared_ptr<tinyrpc::CoroutineTaskQueue> corTaskQueue = \
+        CoroutineTaskQueue::sptr corTaskQueue = \
           IOThread::GetCurrentIOThread()->getweakCorTaskQueue().lock();
-        if (!corTaskQueue) [[unlikely]] 
-        {
-          Exit(0);
-        }
+        assert(corTaskQueue != nullptr && "corTaskQueue had released");
         ptr = corTaskQueue->pop();
         if (ptr) {
           // reactor和IOThread绑定
@@ -327,10 +324,14 @@ void Reactor::loop() {
      * 
      */
 		int rt = epoll_wait(m_epfd, re_events, MAX_EVENTS, t_max_epoll_timeout);
+    int savedErrno = errno;
 
 		// RpcDebugLog << "epoll_wait back";
 
-		if (rt < 0) {
+		if (rt < 0) [[unlikely]] {
+      if (savedErrno != EINTR) {
+        tinyrpc::Exit(0);
+      }
 			RpcErrorLog << "epoll_wait error, skip, errno=" << strerror(errno);
 		} else {
 			// RpcDebugLog << "epoll_wait back, rt = " << rt;
@@ -402,12 +403,9 @@ void Reactor::loop() {
                   //    ptr = CoroutineTaskQueue::GetCoroutineTaskQueue()->pop(); 
                   //    取出事件切换到协程内容执行，并等待返回
 
-                  std::shared_ptr<tinyrpc::CoroutineTaskQueue> corTaskQueue = \
+                  CoroutineTaskQueue::sptr corTaskQueue = \
                   IOThread::GetCurrentIOThread()->getweakCorTaskQueue().lock();
-                  if (!corTaskQueue) [[unlikely]] 
-                  {
-                    Exit(0);
-                  }                  
+                  assert(corTaskQueue != nullptr && "corTaskQueue had released");
                   corTaskQueue->push(ptr);
                 } else {
                   // main reactor, just resume this coroutine. it is accept coroutine. and Main Reactor only have this coroutine
@@ -545,7 +543,7 @@ void Reactor::addTask(std::vector<std::function<void()>> task, bool is_wakeup /*
 // 会在线程中取出tasks，task()执行函数，那么会进入cor的回调函数
 // 如果在cor中也有read/write_hook()等利用coroutine的异步函数
 // 接着toEpoll()会继续注册任务，再回调执行
-void Reactor::addCoroutine(tinyrpc::Coroutine::ptr cor, bool is_wakeup /*=true*/) {
+void Reactor::addCoroutine(tinyrpc::Coroutine::sptr cor, bool is_wakeup /*=true*/) {
 
   auto func = [cor](){
     tinyrpc::Coroutine::Resume(cor.get());

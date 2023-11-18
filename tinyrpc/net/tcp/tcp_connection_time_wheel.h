@@ -14,7 +14,7 @@ class TcpConnection;
 class TcpTimeWheel {
 
  public:
-  typedef std::shared_ptr<TcpTimeWheel> ptr;
+  typedef std::shared_ptr<TcpTimeWheel> sptr;
 
   typedef AbstractSlot<TcpConnection> TcpConnectionSlot;
 
@@ -22,7 +22,7 @@ class TcpTimeWheel {
 
   ~TcpTimeWheel();
 
-  void fresh(TcpConnectionSlot::ptr slot);
+  void fresh(TcpConnectionSlot::sptr slot);
 
   void loopFunc();
 
@@ -32,8 +32,8 @@ class TcpTimeWheel {
   int m_bucket_count {0};
   int m_inteval {0};    // second
 
-  TimerEvent::ptr m_event;
-  std::queue<std::vector<TcpConnectionSlot::ptr>> m_wheel;
+  TimerEvent::sptr m_event;
+  std::queue<std::vector<TcpConnectionSlot::sptr>> m_wheel;
 };
 
 

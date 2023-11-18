@@ -4,15 +4,15 @@
 #include <memory>
 #include <google/protobuf/service.h>
 #include "tinyrpc/net/net_address.h"
-#include "tinyrpc/net/tcp/tcp_client.h"
+#include "tinyrpc/net/tcp/rpc_client.h"
 
 namespace tinyrpc {
 
 class TinyPbRpcChannel : public google::protobuf::RpcChannel {
 
  public:
-  typedef std::shared_ptr<TinyPbRpcChannel> ptr;
-  TinyPbRpcChannel(NetAddress::ptr addr);
+  typedef std::shared_ptr<TinyPbRpcChannel> sptr;
+  TinyPbRpcChannel(NetAddress::sptr addr);
   ~TinyPbRpcChannel() = default;
 
 void CallMethod(const google::protobuf::MethodDescriptor* method, 
@@ -22,16 +22,16 @@ void CallMethod(const google::protobuf::MethodDescriptor* method,
     google::protobuf::Closure* done);
  
  private:
-  NetAddress::ptr m_addr;
-  // TcpClient::ptr m_client;
+  NetAddress::sptr m_addr;
+  // TcpClient::sptr m_client;
 
 };
 
 class TinyPbRpcClientChannel : public google::protobuf::RpcChannel {
 
  public:
-  typedef std::shared_ptr<TinyPbRpcClientChannel> ptr;
-  TinyPbRpcClientChannel(NetAddress::ptr, TcpClient::ptr);
+  typedef std::shared_ptr<TinyPbRpcClientChannel> sptr;
+  TinyPbRpcClientChannel(NetAddress::sptr, RpcClient::wptr);
   ~TinyPbRpcClientChannel() = default;
 
 void CallMethod(const google::protobuf::MethodDescriptor* method, 
@@ -41,8 +41,8 @@ void CallMethod(const google::protobuf::MethodDescriptor* method,
     google::protobuf::Closure* done);
  
  private:
-  NetAddress::ptr addr_;
-  TcpClient::ptr client_;
+  NetAddress::sptr addr_;
+  RpcClient::wptr weakRpcClient_;
 
 };
 

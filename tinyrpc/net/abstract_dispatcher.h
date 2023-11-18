@@ -11,8 +11,11 @@ namespace tinyrpc {
 class TcpConnection;
 
 class AbstractDispatcher {
+
  public:
-  typedef std::shared_ptr<AbstractDispatcher> ptr;
+  typedef std::shared_ptr<AbstractDispatcher> sptr;
+
+ public:
 
   AbstractDispatcher() {}
 

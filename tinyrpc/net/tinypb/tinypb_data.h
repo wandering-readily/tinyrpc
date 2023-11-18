@@ -11,7 +11,7 @@ namespace tinyrpc {
 
 class TinyPbStruct : public AbstractData {
  public:
-  typedef std::shared_ptr<TinyPbStruct> pb_ptr;
+  typedef std::shared_ptr<TinyPbStruct> pb_sptr;
   TinyPbStruct() = default;
   ~TinyPbStruct() = default;
   TinyPbStruct(const TinyPbStruct& ) = default;

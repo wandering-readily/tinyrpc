@@ -1,6 +1,7 @@
 #include <google/protobuf/service.h>
 #include <atomic>
 #include <future>
+
 #include "tinyrpc/comm/start.h"
 #include "tinyrpc/net/http/http_request.h"
 #include "tinyrpc/net/http/http_response.h"
@@ -16,7 +17,7 @@
 
 const char* html = "<html><body><h1>Welcome to TinyRPC, just enjoy it!</h1><p>%s</p></body></html>";
 
-tinyrpc::IPAddress::ptr addr = std::make_shared<tinyrpc::IPAddress>("127.0.0.1", 20000);
+tinyrpc::IPAddress::sptr addr = std::make_shared<tinyrpc::IPAddress>("127.0.0.1", 20000);
 
 class BlockCallHttpServlet : public tinyrpc::HttpServlet {
  public:
@@ -86,8 +87,8 @@ class BlockCallHttpServlet : public tinyrpc::HttpServlet {
 
 class NonBlockCallHttpServlet: public tinyrpc::AsyncHttpServlet{
  public:
-  NonBlockCallHttpServlet(std::weak_ptr<tinyrpc::CoroutinePool> corPool, \
-    std::weak_ptr<tinyrpc::IOThreadPool> threadPool) \
+  NonBlockCallHttpServlet(tinyrpc::CoroutinePool::wptr corPool, \
+    tinyrpc::IOThreadPool::wptr threadPool) \
     : AsyncHttpServlet(corPool, threadPool){}
   ~NonBlockCallHttpServlet() = default;
 
@@ -110,13 +111,13 @@ class NonBlockCallHttpServlet: public tinyrpc::AsyncHttpServlet{
       }
     }
 
-    std::shared_ptr<tinyrpc::TinyPbRpcController> rpc_controller = std::make_shared<tinyrpc::TinyPbRpcController>();
+    tinyrpc::TinyPbRpcController::sptr rpc_controller = std::make_shared<tinyrpc::TinyPbRpcController>();
     rpc_controller->SetTimeout(10000);
 
     AppDebugLog("NonBlockCallHttpServlet begin to call RPC async");
 
 
-    tinyrpc::TinyPbRpcAsyncChannel::ptr async_channel = 
+    tinyrpc::TinyPbRpcAsyncChannel::sptr async_channel = 
       std::make_shared<tinyrpc::TinyPbRpcAsyncChannel>(addr);
 
     auto cb = [rpc_res]() {
@@ -124,12 +125,9 @@ class NonBlockCallHttpServlet: public tinyrpc::AsyncHttpServlet{
       AppDebugLog("NonBlockCallHttpServlet async call end, res=%s", rpc_res->ShortDebugString().c_str());
     };
 
-    std::shared_ptr<tinyrpc::TinyPbRpcClosure> closure = std::make_shared<tinyrpc::TinyPbRpcClosure>(cb); 
-    std::shared_ptr<tinyrpc::IOThreadPool> threadPool = this->getweakIOThreadPool().lock();
-    if (!threadPool) [[unlikely]] 
-    {
-      tinyrpc::Exit(0);
-    }
+    tinyrpc::TinyPbRpcClosure::sptr closure = std::make_shared<tinyrpc::TinyPbRpcClosure>(cb); 
+    tinyrpc::IOThreadPool::sptr threadPool = this->getweakIOThreadPool().lock();
+    assert(threadPool != nullptr && "threadPool had released");
     async_channel->saveCallee(rpc_controller, rpc_req, rpc_res, closure, \
       getWeakCoroutinePool(), threadPool->getRandomThread(false).get());
 

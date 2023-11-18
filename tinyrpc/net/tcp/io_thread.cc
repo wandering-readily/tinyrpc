@@ -21,7 +21,7 @@ static thread_local Reactor* t_reactor_ptr = nullptr;
 static thread_local IOThread* t_cur_io_thread = nullptr;
 
 
-IOThread::IOThread(std::weak_ptr<CoroutineTaskQueue> corTaskQueue)
+IOThread::IOThread(CoroutineTaskQueue::wptr corTaskQueue)
     : weakCorTaskQueue_(corTaskQueue) {
 
   int rt = sem_init(&m_init_semaphore, 0, 0);
@@ -115,12 +115,12 @@ void* IOThread::main(void* arg) {
 }
 
 
-IOThreadPool::IOThreadPool(int size, std::weak_ptr<CoroutinePool> corPool) 
+IOThreadPool::IOThreadPool(int size, CoroutinePool::wptr corPool) 
     : m_size(size), weakCorPool_(corPool) {
   m_io_threads.resize(size);
 }
 
-void IOThreadPool::beginThreadPool(std::weak_ptr<CoroutineTaskQueue> corTaskQueue) {
+void IOThreadPool::beginThreadPool(CoroutineTaskQueue::wptr corTaskQueue) {
   for (int i = 0; i < m_size; ++i) {
     m_io_threads[i] = std::make_shared<IOThread>(corTaskQueue);
     m_io_threads[i]->setThreadIndex(i);
@@ -164,7 +164,7 @@ void IOThreadPool::addTaskByIndex(int index, std::function<void()> cb) {
   }
 }
 
-tinyrpc::IOThread::ptr IOThreadPool::getRandomThread(bool self /* = false*/) {
+tinyrpc::IOThread::sptr IOThreadPool::getRandomThread(bool self /* = false*/) {
   if (m_size == 1) {
     return m_io_threads[0];
   }
@@ -184,25 +184,22 @@ tinyrpc::IOThread::ptr IOThreadPool::getRandomThread(bool self /* = false*/) {
 }
 
 // 添加Coroutine
-void IOThreadPool::addCoroutineToRandomThread(Coroutine::ptr cor, bool self /* = false*/) {
+void IOThreadPool::addCoroutineToRandomThread(Coroutine::sptr cor, bool self /* = false*/) {
   if (m_size == 1) {
     m_io_threads[0]->getReactor()->addCoroutine(cor, true);
     return;
   }
   srand(time(0));
-  tinyrpc::IOThread::ptr thread = getRandomThread(self);
+  tinyrpc::IOThread::sptr thread = getRandomThread(self);
   thread->getReactor()->addCoroutine(cor, true);
 }
 
 
-Coroutine::ptr IOThreadPool::addCoroutineToRandomThread(std::function<void()> cb, bool self/* = false*/) {
+Coroutine::sptr IOThreadPool::addCoroutineToRandomThread(std::function<void()> cb, bool self/* = false*/) {
   // 获取一个Coroutine
-  std::shared_ptr<tinyrpc::CoroutinePool> corPool = weakCorPool_.lock();
-	if (!corPool) [[unlikely]]
-	{
-		Exit(0);
-	}
-  Coroutine::ptr cor = corPool->getCoroutineInstanse();
+  CoroutinePool::sptr corPool = weakCorPool_.lock();
+  assert(corPool != nullptr && "corPool had released");
+  Coroutine::sptr cor = corPool->getCoroutineInstanse();
   // 启用协程
   cor->setCallBack(cb);
   // 协程内容添加到random thread，而这个self决定是否一定要发生在curIOThread
@@ -211,18 +208,15 @@ Coroutine::ptr IOThreadPool::addCoroutineToRandomThread(std::function<void()> cb
 }
 
 // 根据IOThread index添加协程内容
-Coroutine::ptr IOThreadPool::addCoroutineToThreadByIndex(int index, std::function<void()> cb, bool self/* = false*/) {
+Coroutine::sptr IOThreadPool::addCoroutineToThreadByIndex(int index, std::function<void()> cb, bool self/* = false*/) {
   if (index >= (int)m_io_threads.size() || index < 0) {
     RpcErrorLog << "addCoroutineToThreadByIndex error, invalid iothread index[" << index << "]";
     return nullptr;
   }
 
-  std::shared_ptr<tinyrpc::CoroutinePool> corPool = weakCorPool_.lock();
-	if (!corPool) [[unlikely]]
-	{
-		Exit(0);
-	}
-  Coroutine::ptr cor = corPool->getCoroutineInstanse();
+  CoroutinePool::sptr corPool = weakCorPool_.lock();
+  assert(corPool != nullptr && "corPool had released");
+  Coroutine::sptr cor = corPool->getCoroutineInstanse();
   cor->setCallBack(cb);
   m_io_threads[index]->getReactor()->addCoroutine(cor, true);
   return cor;
@@ -231,13 +225,10 @@ Coroutine::ptr IOThreadPool::addCoroutineToThreadByIndex(int index, std::functio
 
 // 每个线程添加协程内容
 void IOThreadPool::addCoroutineToEachThread(std::function<void()> cb) {
-  std::shared_ptr<tinyrpc::CoroutinePool> corPool = weakCorPool_.lock();
-	if (!corPool) [[unlikely]]
-	{
-		Exit(0);
-	}
+  CoroutinePool::sptr corPool = weakCorPool_.lock();
+  assert(corPool != nullptr && "corPool had released");
   for (auto i : m_io_threads) {
-    Coroutine::ptr cor = corPool->getCoroutineInstanse();
+    Coroutine::sptr cor = corPool->getCoroutineInstanse();
     cor->setCallBack(cb);
     i->getReactor()->addCoroutine(cor, true);
   }

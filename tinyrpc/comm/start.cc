@@ -4,7 +4,6 @@
 #include "tinyrpc/comm/config.h"
 #include "tinyrpc/net/tcp/tcp_server.h"
 #include "tinyrpc/coroutine/coroutine_hook.h"
-#include "tinyrpc/coroutine/coroutine_pool.h"
 
 // 额外增加的#define
 // 只是为了看到MYSQL的操作
@@ -16,7 +15,7 @@ namespace tinyrpc {
 extern bool Init_t_msg_req_len(int);
 extern bool Init_m_max_connect_timeout(int);
 
-tinyrpc::Logger::ptr gRpcLogger;
+tinyrpc::Logger::sptr gRpcLogger;
 
 TinyrpcServer::TinyrpcServer(const char *configName) : configName_(configName) {
   InitServiceConfig();
@@ -42,10 +41,10 @@ void TinyrpcServer::StartRpcServer() {
   gRpcServer_->start();
 }
 
-TcpServer::ptr TinyrpcServer::GetServer() {
+TcpServer::sptr TinyrpcServer::GetServer() {
   return gRpcServer_;
 }
-Config::ptr TinyrpcServer::GetConfig() {
+Config::sptr  TinyrpcServer::GetConfig() {
   return gRpcConfig_;
 }
 
@@ -73,7 +72,7 @@ void TinyrpcServer::InitConfig() {
   Init_m_max_connect_timeout(gRpcConfig_->m_max_connect_timeout);
 }
 
-void TinyrpcServer::InitLogger(std::shared_ptr<Logger> &logger) {
+void TinyrpcServer::InitLogger(Logger::sptr &logger) {
   if (logger){
     return ;
   }

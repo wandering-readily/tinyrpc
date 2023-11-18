@@ -45,7 +45,7 @@ void HttpDispacther::dispatch(AbstractData* data, TcpConnection* conn) {
 }
 
 // 注册不同URL PATH的不同处理方法
-void HttpDispacther::registerServlet(const std::string& path, HttpServlet::ptr servlet) {
+void HttpDispacther::registerServlet(const std::string& path, HttpServlet::sptr servlet) {
   auto it = m_servlets.find(path);
   if (it == m_servlets.end()) {
     RpcDebugLog << "register servlet success to path {" << path << "}";

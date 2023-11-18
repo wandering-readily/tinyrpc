@@ -18,11 +18,11 @@ namespace tinyrpc {
 class AsyncCor_TinyrpcClientWaiter : public AsyncCor_Waiter {
 
 public:
-  typedef std::shared_ptr<tinyrpc::TinyPbRpcAsyncChannel> ptr;
+  typedef std::shared_ptr<tinyrpc::AsyncCor_TinyrpcClientWaiter> sptr;
 
 public:
 
-  AsyncCor_TinyrpcClientWaiter(AsyncCor_TinyrpcClientWaiter::ptr channel) \
+  AsyncCor_TinyrpcClientWaiter(TinyPbRpcAsyncChannel::sptr channel) \
     : channel_(channel){}
 
   ~AsyncCor_TinyrpcClientWaiter() = default;
@@ -38,7 +38,7 @@ public:
 private:
   // 只适合单线程wait
   bool waited = false;
-  std::shared_ptr<tinyrpc::TinyPbRpcAsyncChannel> channel_;
+  tinyrpc::TinyPbRpcAsyncChannel::sptr channel_;
   
 };
 
@@ -134,9 +134,9 @@ public:
 private:
   int cor_pool_size_ = 100;
   int cor_stack_size_ = 256 * 1024;
-  std::shared_ptr<CoroutinePool> CorPool_;
-  std::shared_ptr<CoroutineTaskQueue> coroutine_task_queue_;
-  std::shared_ptr<tinyrpc::IOThreadPool> IOThreadPool_;
+  CoroutinePool::sptr CorPool_;
+  CoroutineTaskQueue::sptr coroutine_task_queue_;
+  tinyrpc::IOThreadPool::sptr IOThreadPool_;
 };
 
 }; // namespace tinyrpc

@@ -34,16 +34,16 @@ enum TcpConnectionState {
 class TcpConnection : public std::enable_shared_from_this<TcpConnection> {
 
  public:
- 	typedef std::shared_ptr<TcpConnection> ptr;
+ 	typedef std::shared_ptr<TcpConnection> sptr;
 
-	TcpConnection(tinyrpc::TcpServer* tcp_svr, tinyrpc::IOThread* io_thread, \
-    int fd, int buff_size, NetAddress::ptr peer_addr, \
+	TcpConnection(tinyrpc::TcpServer *, tinyrpc::IOThread *, \
+    int, int, NetAddress::sptr, \
     std::weak_ptr<CoroutinePool>, std::weak_ptr<FdEventContainer>);
 
 	// TcpConnection(tinyrpc::TcpClient* tcp_cli, tinyrpc::Reactor* reactor, 
-	TcpConnection( AbstractCodeC::ptr codec, tinyrpc::Reactor* reactor, \
-    int fd, int buff_size, NetAddress::ptr peer_addr, \
-    std::weak_ptr<FdEventContainer>);
+	TcpConnection( AbstractCodeC::sptr codec, tinyrpc::Reactor* reactor, \
+    int fd, int buff_size, NetAddress::sptr peer_addr, \
+    FdEventContainer::wptr);
 
   void setUpClient();
 
@@ -69,13 +69,13 @@ class TcpConnection : public std::enable_shared_from_this<TcpConnection> {
 
   TcpBuffer* getOutBuffer();
 
-  AbstractCodeC::ptr getCodec() const;
+  AbstractCodeC::sptr getCodec() const;
 
-  bool getResPackageData(const std::string& msg_req, TinyPbStruct::pb_ptr& pb_struct);
+  bool getResPackageData(const std::string& msg_req, TinyPbStruct::pb_sptr& pb_struct);
 
   void registerToTimeWheel();
 
-  Coroutine::ptr getCoroutine();
+  Coroutine::sptr getCoroutine();
 
   int64_t getServerCloseConnTime() const {return serverCloseConnTime_;}
 
@@ -100,13 +100,21 @@ class TcpConnection : public std::enable_shared_from_this<TcpConnection> {
 
   void setFd(int fd) {m_fd = fd;}
 
+  void setWeakSlot(std::weak_ptr<AbstractSlot<TcpConnection>> slot) {
+    m_weak_slot = slot;
+  }
+
+  bool isServerConn() {return m_connection_type == ConnectionType::ServerConnection;}
+
+  void freshTcpConnection (std::shared_ptr<AbstractSlot<TcpConnection>>);
+
  private:
   void clearClient();
 
  private:
   TcpServer* m_tcp_svr {nullptr};
   // 解耦TcpClient* 
-  // TCPClient 输入TCPClient*变成输入AbstractCodeC::ptr m_codec
+  // TCPClient 输入TCPClient*变成输入AbstractCodeC::sptr m_codec
   // TcpClient* m_tcp_cli {nullptr};
 
   IOThread* m_io_thread {nullptr};
@@ -116,23 +124,23 @@ class TcpConnection : public std::enable_shared_from_this<TcpConnection> {
   TcpConnectionState m_state {TcpConnectionState::Connected};
   ConnectionType m_connection_type {ConnectionType::ServerConnection};
 
-  NetAddress::ptr m_peer_addr;
+  NetAddress::sptr m_peer_addr;
 
 
-	TcpBuffer::ptr m_read_buffer;
-	TcpBuffer::ptr m_write_buffer;
+	TcpBuffer::sptr m_read_buffer;
+	TcpBuffer::sptr m_write_buffer;
 
-  Coroutine::ptr m_loop_cor;
+  Coroutine::sptr m_loop_cor;
 
-  AbstractCodeC::ptr m_codec;
+  AbstractCodeC::sptr m_codec;
 
-  FdEvent::ptr m_fd_event;
+  FdEvent::sptr m_fd_event;
 
   bool m_stop {false};
 
   bool m_is_over_time {false};
 
-  std::map<std::string, std::shared_ptr<TinyPbStruct>> m_reply_datas;
+  std::map<std::string, TinyPbStruct::pb_sptr> m_reply_datas;
 
   std::weak_ptr<AbstractSlot<TcpConnection>> m_weak_slot;
 
@@ -140,7 +148,7 @@ class TcpConnection : public std::enable_shared_from_this<TcpConnection> {
 
   std::weak_ptr<CoroutinePool> weakCorPool_;
 
-  std::weak_ptr<FdEventContainer> weakFdEventPool_;
+  FdEventContainer::wptr weakFdEventPool_;
 
   std::atomic_int64_t serverCloseConnTime_;
 };
