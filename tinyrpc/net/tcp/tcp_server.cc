@@ -27,13 +27,6 @@ TcpAcceptor::TcpAcceptor(NetAddress::sptr net_addr, FdEventContainer::wptr fdEve
 
 void TcpAcceptor::init() {
 	m_fd = createNonblockingOrDie(m_local_addr->getFamily());
-	if (m_fd < 0) {
-		// RpcErrorLog << "start server error. socket error, sys error=" << strerror(errno);
-		std::stringstream ss;
-		ss << __FILE__ << "-" << __func__ << "-" << __LINE__ <<  ", errno " << errno << ", " << strerror(errno) << "\n";
-		throw(ss.str());
-		Exit(0);
-	}
 	// assert(m_fd != -1);
 	RpcDebugLog << "create listenfd succ, listenfd=" << m_fd;
 
@@ -52,10 +45,7 @@ void TcpAcceptor::init() {
 	int rt = bind(m_fd, m_local_addr->getSockAddr(), len);
 	if (rt != 0) {
 		// RpcErrorLog << "start server error. bind error, errno=" << errno << ", error=" << strerror(errno);
-		std::stringstream ss;
-		ss << __FILE__ << "-" << __func__ << "-" << __LINE__ <<  ", errno " << errno << ", " << strerror(errno) << "\n";
-		throw(ss.str());
-		Exit(0);
+		locateErrorExit
 	}
   // assert(rt == 0);
 
@@ -63,10 +53,7 @@ void TcpAcceptor::init() {
 	rt = listen(m_fd, 10);
 	if (rt != 0) {
 		// RpcErrorLog << "start server error. listen error, fd= " << m_fd << ", errno=" << errno << ", error=" << strerror(errno);
-		std::stringstream ss;
-		ss << __FILE__ << "-" << __func__ << "-" << __LINE__ <<  ", errno " << errno << ", " << strerror(errno) << "\n";
-		throw(ss.str());
-		Exit(0);
+		locateErrorExit
 	}
   // assert(rt == 0);
 
@@ -122,10 +109,7 @@ int TcpAcceptor::toAccept() {
 			case EOPNOTSUPP:
 			default:
 				// RpcErrorLog << "unknown error of ::accept " << savedErrno;
-				std::stringstream ss;
-				ss << __FILE__ << "-" << __func__ << "-" << __LINE__ <<  ", errno " << errno << ", " << strerror(errno) << "\n";
-				throw(ss.str());
-				Exit(0);
+				locateErrorExit
 				break;
 			}
 
@@ -168,10 +152,7 @@ int TcpAcceptor::toAccept() {
 			case ENOTSOCK:
 			case EOPNOTSUPP:
 			default:
-			 	std::stringstream ss;
-				ss << __FILE__ << "-" << __func__ << "-" << __LINE__ <<  ", errno " << errno << ", " << strerror(errno) << "\n";
-				throw(ss.str());
-				Exit(0);
+				locateErrorExit
 			}
 
 			return -1;
@@ -346,14 +327,14 @@ TcpConnection::sptr TcpServer::addClient(IOThread* io_thread, int fd) {
 		// 由于ClearClientTimerFunc()函数删除了shared_ptr指针
 		// 但是m_clients (fd, shared_ptr<TcpConnecytion>(此时是nullptr))仍在
 		// 因此在这里重建
-		std::cout << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()) <<  " make " << fd << " server conn" << "\n\n";
+		// std::cout << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()) <<  " make " << fd << " server conn" << "\n\n";
 		it->second = std::make_shared<TcpConnection>(this, io_thread, \
 			fd, 128, getPeerAddr(), weakCorPool_, weakFdEventPool_);
 		return it->second;
 
   } else {
 		RpcDebugLog << "fd " << fd << "did't exist, new it";
-		std::cout << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()) <<  " make " << fd << " server conn" << "\n\n";
+		// std::cout << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()) <<  " make " << fd << " server conn" << "\n\n";
     TcpConnection::sptr conn = std::make_shared<TcpConnection>(this, io_thread, \
 		fd, 128, getPeerAddr(), weakCorPool_, weakFdEventPool_); 
     m_clients.insert(std::make_pair(fd, conn));

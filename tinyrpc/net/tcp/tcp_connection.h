@@ -35,14 +35,17 @@ class TcpConnection : public std::enable_shared_from_this<TcpConnection> {
 
  public:
  	typedef std::shared_ptr<TcpConnection> sptr;
+ 	typedef std::weak_ptr<TcpConnection> wptr;
+
+  friend class RpcClient;
 
 	TcpConnection(tinyrpc::TcpServer *, tinyrpc::IOThread *, \
     int, int, NetAddress::sptr, \
     std::weak_ptr<CoroutinePool>, std::weak_ptr<FdEventContainer>);
 
 	// TcpConnection(tinyrpc::TcpClient* tcp_cli, tinyrpc::Reactor* reactor, 
-	TcpConnection( AbstractCodeC::sptr codec, tinyrpc::Reactor* reactor, \
-    int fd, int buff_size, NetAddress::sptr peer_addr, \
+	TcpConnection(AbstractCodeC::sptr, tinyrpc::Reactor*, \
+    int, int, NetAddress::sptr, NetAddress::sptr, \
     FdEventContainer::wptr);
 
   void setUpClient();
@@ -104,6 +107,9 @@ class TcpConnection : public std::enable_shared_from_this<TcpConnection> {
     m_weak_slot = slot;
   }
 
+  NetAddress::sptr getLocalAddr() {return m_local_addr;}
+  NetAddress::sptr getPeerAddr() {return m_peer_addr;}
+
   bool isServerConn() {return m_connection_type == ConnectionType::ServerConnection;}
 
   void freshTcpConnection (std::shared_ptr<AbstractSlot<TcpConnection>>);
@@ -125,7 +131,7 @@ class TcpConnection : public std::enable_shared_from_this<TcpConnection> {
   ConnectionType m_connection_type {ConnectionType::ServerConnection};
 
   NetAddress::sptr m_peer_addr;
-
+  NetAddress::sptr m_local_addr;
 
 	TcpBuffer::sptr m_read_buffer;
 	TcpBuffer::sptr m_write_buffer;

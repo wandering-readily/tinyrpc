@@ -16,6 +16,7 @@
 
 namespace details {
 
+
 void connKeepAlive(tinyrpc::TcpConnection::sptr conn) {
   // 保活机制
   int64_t now = details::getNowMs();
@@ -56,6 +57,7 @@ TcpConnection::TcpConnection(tinyrpc::TcpServer* tcp_svr, tinyrpc::IOThread* io_
 
   // RpcDebugLog << "m_state=[" << m_state << "], =" << fd;
   m_tcp_svr = tcp_svr;
+  m_local_addr = tcp_svr->getLocalAddr();
 
   m_codec = m_tcp_svr->getCodec();
 
@@ -77,19 +79,15 @@ TcpConnection::TcpConnection(tinyrpc::TcpServer* tcp_svr, tinyrpc::IOThread* io_
 }
 
 TcpConnection::TcpConnection(AbstractCodeC::sptr codec, tinyrpc::Reactor* reactor, \
-    int fd, int buff_size, NetAddress::sptr peer_addr, \
+    int fd, int buff_size, NetAddress::sptr peer_addr,  NetAddress::sptr local_addr, \
     FdEventContainer::wptr fdEventPool)
-    : m_fd(fd), m_state(NotConnected), \
+    :  m_fd(fd),  m_state(NotConnected), \
     m_connection_type(ConnectionType::ClientConnection), \
-    m_peer_addr(peer_addr), \
+    m_peer_addr(peer_addr), m_local_addr(local_addr), \
     weakFdEventPool_(fdEventPool) {
 
-  m_reactor = reactor;
-
+  // m_reactor = reactor;
   // m_tcp_cli = tcp_cli;
-
-  // m_codec = m_tcp_cli->getCodeC();
-
   m_codec = codec;
 
   tinyrpc::FdEventContainer::sptr sharedFdEventPool = weakFdEventPool_.lock();
@@ -141,10 +139,10 @@ TcpConnection::~TcpConnection() {
     assert(sharedCorPool != nullptr && "sharedFdEventPool had released");
     sharedCorPool->returnCoroutine(m_loop_cor);
 
-    std::cout << "server conn " << m_fd << " out" << "\n\n";
-  } else {
+    // std::cout << "server conn " << m_fd << " out" << "\n\n";
+  // } else {
 
-    std::cout << "client conn " << m_fd << " out" << "\n\n";
+    // std::cout << "client conn " << m_fd << " out" << "\n\n";
   }
 
   // serverCloseConnTime_ = 0;
@@ -230,10 +228,7 @@ void TcpConnection::input() {
         continue;
 
       } else {
-        std::stringstream ss;
-        ss << __FILE__ << "-" << __func__ << "-" << __LINE__ <<  ", errno " << errno << ", " << strerror(errno) << "\n";
-        std::cout << ss.str();
-        Exit(0);
+        locateErrorExit
       }
       // RpcDebugLog << "rt < 0";
       // RpcErrorLog << "read empty while occur read event, because of peer close, fd= " << m_fd << ", sys error=" << strerror(errno) << ", now to clear tcp connection";
@@ -241,6 +236,19 @@ void TcpConnection::input() {
       if (rt == read_count) {
         // RpcDebugLog << "read_count == rt";
         // is is possible read more data, should continue read
+        // 这里必读入字节，而且packageLen初始值为0
+          /*
+           * ???
+           * !!!
+           * if (count == packageLen) 
+           * 这里有一个问题，
+           *    如果rt == read_count 且 package全部传入完
+           *    这会让read_hook会在EPOLL_WAIT等待
+           * 
+           * 在tinypb_codec方法 可以分析packageLen，那么很好避免这一点
+           *
+           * 而HTTP方法 header['Content-Type']不好分析packageLen
+           */
         continue;
       } else if (rt < read_count) {
         // RpcDebugLog << "read_count > rt";
@@ -344,10 +352,7 @@ void TcpConnection::output() {
         continue;
 
       } else {
-        std::stringstream ss;
-        ss << __FILE__ << "-" << __func__ << "-" << __LINE__ <<  ", errno " << errno << ", " << strerror(errno) << "\n";
-        std::cout << ss.str();
-        Exit(0);
+        locateErrorExit
       }
       
     } else {

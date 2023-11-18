@@ -36,8 +36,13 @@ private:
 
   void callback() {
     cb_();
-    called = true;
+    cancelCB();
     cancel();
+  }
+
+  void cancelCB() {
+    cb_ = [](){};
+    called = true;;
   }
 
   sem_t *getwaitAddInLoopSem() {return &sem_waitAddInLoop;}
@@ -56,6 +61,7 @@ class LightTimerPool {
 
 public:
   typedef std::shared_ptr<LightTimerPool> sptr;
+  typedef std::weak_ptr<LightTimerPool> wptr;
 
 private:
   using PISP = std::pair<int, LightTimer::sptr>;

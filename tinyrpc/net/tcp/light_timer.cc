@@ -32,21 +32,20 @@ bool LightTimer::registerInLoop() {
   bool rt = timerPool->addLightTimer(shared_from_this());
   assert(rt && "timerfd_settime can't fail");
   if (!rt) [[unlikely]] {
-    throw "can't add LightTimer";
-    tinyrpc::Exit(0);
+    locateErrorExit
   }
 
   sem_wait(getwaitAddInLoopSem());
 
   int rs = timerfd_settime(fd_, 0, &value_, nullptr);
   if (rs != 0) [[unlikely]] {
-    throw "can't set timer settime";
-    tinyrpc::Exit(0);
+    locateErrorExit
   }
   return true;
 }
 
 LightTimer::~LightTimer() {
+  cancelCB();
   LightTimerPool::sptr timerPool = weakLightTimerPool_.lock();
   if (timerPool) {
     timerPool->delLightTimer(fd_);
@@ -68,8 +67,7 @@ bool LightTimer::resetTimer(std::function<void(void)> cb) {
 
   int rs = timerfd_settime(fd_, 0, &value_, nullptr);
   if (rs != 0) [[unlikely]] {
-    throw "can't timer settime";
-    tinyrpc::Exit(0);
+    locateErrorExit
   }
   return true;
 
@@ -85,14 +83,12 @@ void LightTimer::cancel() {
 LightTimerPool::LightTimerPool() {
   wake_fd_ = eventfd(0, EFD_NONBLOCK);
   if(wake_fd_ <= 0 ) [[unlikely]] {
-    throw "can't lightTimerPool create eventfd";
-    tinyrpc::Exit(0);
+    locateErrorExit
   }
 
   epfd_ = epoll_create(1);
   if(epfd_ <= 0 ) [[unlikely]] {
-    throw "can't create epoll";
-    tinyrpc::Exit(0);
+    locateErrorExit
   }
 
   addWakeupFd();
@@ -140,8 +136,7 @@ void LightTimerPool::addWakeupFd() {
   event.events = EPOLLIN;
   int rs = epoll_ctl(epfd_, op, wake_fd_, &event);
   if (rs != 0) [[unlikely]] {
-    throw "can't lightTimerPool epoll add wakefd";
-    tinyrpc::Exit(0);
+    locateErrorExit
   }
 }
 
@@ -153,8 +148,7 @@ void LightTimerPool::wakeup() {
   uint64_t* p = &tmp; 
   int writedBytes = write(wake_fd_, p, 8);
   if(writedBytes != 8) [[unlikely]] {
-    throw "can't lightTimerPool write wake_fd 8 bytes";
-    tinyrpc::Exit(0);
+    locateErrorExit
   }
 }
 
@@ -203,7 +197,7 @@ void *LightTimerPool::Loop(void *arg) {
     if (rt < 0) [[unlikely]] {
       printf("errno %d, %s\n", errno, strerror(errno));
       if (savedErrno != EINTR) {
-        tinyrpc::Exit(0);
+        locateErrorExit
       }
 
     } else {
@@ -244,8 +238,7 @@ void *LightTimerPool::Loop(void *arg) {
 
         } else [[unlikely]] {
           // 排除eventfd, timerfd之后监听到的事件
-          throw "can't lightTimerPool use not registered timerfd";
-          tinyrpc::Exit(0);
+          locateErrorExit
         }
       }
 

@@ -2,7 +2,7 @@
 #define TINYRPC_COMM_LOG_H
 
 #include <sstream>
-#include <sstream>
+// #include <iostream>
 #include <time.h>
 #include <sys/time.h>
 #include <sys/types.h>
@@ -223,6 +223,21 @@ if (tinyrpc::OpenLogger()) \
 		+ ":" + std::to_string(__LINE__) \
 		+ "]\t" + tinyrpc::formatString(str, ##__VA_ARGS__) + "\n"); \
   }\
+
+
+
+// printf("%s", ss.str().c_str());
+// std::cout << ss.str(); 
+
+#define locateErrorExit \
+	{\
+	std::stringstream ss; \
+	ss << __FILE__ << "-" << __func__ << "-" << __LINE__ \
+		<<  ", errno " << errno << ", " << strerror(errno) << "\n"; \
+	printf("%s", ss.str().c_str()); \
+	Exit(0); \
+	}\
+
 
 
 

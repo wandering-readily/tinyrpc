@@ -31,7 +31,7 @@ class TinyPbRpcClientChannel : public google::protobuf::RpcChannel {
 
  public:
   typedef std::shared_ptr<TinyPbRpcClientChannel> sptr;
-  TinyPbRpcClientChannel(NetAddress::sptr, RpcClient::wptr);
+  TinyPbRpcClientChannel(std::shared_ptr<RpcClient>);
   ~TinyPbRpcClientChannel() = default;
 
 void CallMethod(const google::protobuf::MethodDescriptor* method, 
@@ -41,8 +41,7 @@ void CallMethod(const google::protobuf::MethodDescriptor* method,
     google::protobuf::Closure* done);
  
  private:
-  NetAddress::sptr addr_;
-  RpcClient::wptr weakRpcClient_;
+  std::shared_ptr<RpcClient> rpc_client_;
 
 };
 

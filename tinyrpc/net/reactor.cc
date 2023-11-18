@@ -31,8 +31,8 @@ Reactor::Reactor() {
   // one thread can't create more than one reactor object!!
   // assert(t_reactor_ptr == nullptr);
 	if (t_reactor_ptr != nullptr) {
-		RpcErrorLog << "this thread has already create a reactor";
-		Exit(0);
+		// RpcErrorLog << "this thread has already create a reactor";
+    locateErrorExit
 	}
 
   m_tid = gettid();
@@ -42,8 +42,8 @@ Reactor::Reactor() {
 
   // epollfd创建
   if((m_epfd = epoll_create(1)) <= 0 ) {
-		RpcErrorLog << "start server error. epoll_create error, sys error=" << strerror(errno);
-		Exit(0);
+		// RpcErrorLog << "start server error. epoll_create error, sys error=" << strerror(errno);
+    locateErrorExit
 	} else {
 		RpcDebugLog << "m_epfd = " << m_epfd;
 	}
@@ -51,8 +51,8 @@ Reactor::Reactor() {
 
   // eventfd唤醒事件
 	if((m_wake_fd = eventfd(0, EFD_NONBLOCK)) <= 0 ) {
-		RpcErrorLog << "start server error. event_fd error, sys error=" << strerror(errno);
-		Exit(0);
+		// RpcErrorLog << "start server error. event_fd error, sys error=" << strerror(errno);
+    locateErrorExit
 	}
 	RpcDebugLog << "wakefd = " << m_wake_fd;
   // assert(m_wake_fd > 0);	
@@ -330,7 +330,7 @@ void Reactor::loop() {
 
 		if (rt < 0) [[unlikely]] {
       if (savedErrno != EINTR) {
-        tinyrpc::Exit(0);
+        locateErrorExit
       }
 			RpcErrorLog << "epoll_wait error, skip, errno=" << strerror(errno);
 		} else {

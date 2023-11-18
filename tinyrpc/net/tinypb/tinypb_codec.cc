@@ -17,6 +17,8 @@ static const char PB_START= 0x02;     // start char
 static const char PB_END = 0x03;      // end char
 static const int MSG_REQ_LEN = 20;    // default length of msg_req
 
+
+
 TinyPbCodeC::TinyPbCodeC() {
 
 }

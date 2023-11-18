@@ -40,13 +40,13 @@ public:
           std::weak_ptr<IOThreadPool> (gRpcServer_->getSharedIOThreadPool())))) {
         printf("Start TinyRPC server error, because register http servelt error, \
           please look up rpc log get more details!\n"); \
-        tinyrpc::Exit(0);
+        locateErrorExit
       }
     } else {
       if(!gRpcServer_->registerHttpServlet(url_path, std::make_shared<T>())) {
         printf("Start TinyRPC server error, because register http servelt error, \
           please look up rpc log get more details!\n"); \
-        tinyrpc::Exit(0);
+        locateErrorExit
       }
     }
   }
@@ -59,7 +59,7 @@ public:
     if(!gRpcServer_->registerService(std::make_shared<T>())) {
       printf("Start TinyRPC server error, because register http servelt error, \
         please look up rpc log get more details!\n"); \
-      tinyrpc::Exit(0);
+      locateErrorExit
     }
   }
 

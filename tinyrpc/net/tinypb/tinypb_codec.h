@@ -30,7 +30,6 @@ class TinyPbCodeC: public AbstractCodeC {
 
   const char* encodePbData(TinyPbStruct* data, int& len);
 
-
 };
 
 } 

@@ -1,5 +1,5 @@
-#ifndef TINYRPC_NET_RPC_TCP_CLIENT_H
-#define TINYRPC_NET_RPC_TCP_CLIENT_H
+#ifndef TINYRPC_NET_TCP_RPC_CLIENT_H
+#define TINYRPC_NET_TCP_RPC_CLIENT_H
 
 #include <memory>
 #include <google/protobuf/service.h>
@@ -14,7 +14,7 @@
 namespace tinyrpc {
 
 class LightTimerPool;
-class LightTimer;
+class RpcClientGroups;
 
 //
 // You should use TcpClient in a coroutine(not main coroutine)
@@ -24,18 +24,16 @@ class RpcClient {
   typedef std::shared_ptr<RpcClient> sptr;
   typedef std::weak_ptr<RpcClient> wptr;
 
-  RpcClient(ProtocalType type = tinyrpc::ProtocalType::TinyPb_Protocal);
+  RpcClient(int, const std::string &, NetAddress::sptr, \
+      FdEventContainer::wptr, \
+      std::weak_ptr<LightTimerPool>, \
+      std::shared_ptr<RpcClientGroups>);
 
   ~RpcClient();
 
-  bool connect(NetAddress::sptr);
+  void resetFd();
 
-  int resetFd(int);
-
-  TcpConnection::sptr getConnection(NetAddress::sptr);
-
-  int sendAndRecvTinyPb(NetAddress::sptr, \
-    const std::string&, TinyPbStruct::pb_sptr&);
+  int sendAndRecvTinyPb(const std::string&, TinyPbStruct::pb_sptr&);
 
   void setTimeout(const int v) {
     m_max_timeout = v;
@@ -50,27 +48,64 @@ class RpcClient {
   }
 
   NetAddress::sptr getLocalAddr() const {
-    return local_addr_;
+    return conn_->getLocalAddr();
   }
 
-  bool delConnection(NetAddress::sptr);
+  NetAddress::sptr getPeerAddr() const {
+    return conn_->getPeerAddr();
+  }
 
-  AbstractCodeC::sptr getCodec() {return codec_;}
+  AbstractCodeC::sptr getCodec() {return conn_->getCodec();}
+
+  TcpConnection::sptr getConn() {return conn_;}
 
  private:
 
   int m_try_counts {3};         // max try reconnect times
   int m_max_timeout {10000};       // max connect timeout, ms
   std::string m_err_info;      // error info of client
-
-  NetAddress::sptr local_addr_ {nullptr};
+  int m_family = -1;
 
   // peer_addr --> connection
   // 增减connection不符合多线程安全
   // rpcClient 不符合多线程安全
-  std::map<std::string, TcpConnection::sptr> connections_;
+  // 推荐的用法是，map的key(std::string)是一个独一无二的标识
+  // 单线程只用这个conn
+  std::string conn_flag;
+  TcpConnection::sptr conn_;
+  FdEventContainer::wptr weakFdEventPool_;
+  std::weak_ptr<LightTimerPool> weakLightTimerPool_;
+  std::weak_ptr<RpcClientGroups> weakRpcClientGroups_;
 
-  AbstractCodeC::sptr codec_ {nullptr};
+}; 
+
+
+class RpcClientGroups {
+ public:
+  typedef std::shared_ptr<RpcClient> sptr;
+  typedef std::weak_ptr<RpcClient> wptr;
+
+  RpcClientGroups(ProtocalType type = tinyrpc::ProtocalType::TinyPb_Protocal);
+
+  ~RpcClientGroups();
+
+  std::shared_ptr<TcpConnection> getConnection(const std::string &, NetAddress::sptr);
+ 
+  bool delConnection(const std::string &);
+
+ private:
+ 
+  std::shared_ptr<tinyrpc::NetAddress> local_addr_ = \
+    std::make_shared<tinyrpc::IPAddress>("127.0.0.1", 0);
+ 
+  bool isServerConn_ {false};
+  
+  Reactor* reactor_ {nullptr};
+  
+  AbstractCodeC::sptr codec_;
+
+  RWMutex conns_mutex_;
+  std::map<std::string, TcpConnection::sptr> conns_;
 
   FdEventContainer::sptr fdEventPool_;
 

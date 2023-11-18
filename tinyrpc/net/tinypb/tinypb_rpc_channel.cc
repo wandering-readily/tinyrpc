@@ -13,6 +13,8 @@
 #include "tinyrpc/comm/msg_req.h"
 #include "tinyrpc/comm/run_time.h"
 
+#include "tinyrpc/net/tcp/tcp_connection.h"
+
 
 namespace tinyrpc {
 
@@ -108,8 +110,8 @@ void TinyPbRpcChannel::CallMethod(const google::protobuf::MethodDescriptor* meth
 
 
 // 构造函数传入m_client的channel
-TinyPbRpcClientChannel::TinyPbRpcClientChannel(NetAddress::sptr addr, \
-  RpcClient::wptr client) : addr_(addr), weakRpcClient_(client) {}
+TinyPbRpcClientChannel::TinyPbRpcClientChannel( \
+    std::shared_ptr<RpcClient> client) : rpc_client_(client) {}
 
 void TinyPbRpcClientChannel::CallMethod(const google::protobuf::MethodDescriptor* method, 
     google::protobuf::RpcController* controller, 
@@ -125,11 +127,11 @@ void TinyPbRpcClientChannel::CallMethod(const google::protobuf::MethodDescriptor
   }
 
 
-  RpcClient::sptr rpcClient = weakRpcClient_.lock();
-  assert(rpcClient != nullptr && "rpcClient had released");
+  TcpConnection::sptr conn = rpc_client_->getConn();
+  assert(conn != nullptr && "rpcClient had released");
 
-  rpc_controller->SetLocalAddr(rpcClient->getLocalAddr());
-  rpc_controller->SetPeerAddr(addr_);
+  rpc_controller->SetLocalAddr(conn->getLocalAddr());
+  rpc_controller->SetPeerAddr(conn->getPeerAddr());
   
   pb_struct.service_full_name = method->full_name();
   RpcDebugLog << "call service_name = " << pb_struct.service_full_name;
@@ -154,8 +156,8 @@ void TinyPbRpcClientChannel::CallMethod(const google::protobuf::MethodDescriptor
     rpc_controller->SetMsgReq(pb_struct.msg_req);
   }
 
-  AbstractCodeC::sptr codec = rpcClient->getCodec();
-  codec->encode(rpcClient->getConnection(addr_)->getOutBuffer(), &pb_struct);
+  AbstractCodeC::sptr codec = conn->getCodec();
+  codec->encode(conn->getOutBuffer(), &pb_struct);
   if (!pb_struct.encode_succ) {
     rpc_controller->SetError(ERROR_FAILED_ENCODE, "encode tinypb data error");
     return;
@@ -165,16 +167,14 @@ void TinyPbRpcClientChannel::CallMethod(const google::protobuf::MethodDescriptor
   RpcInfoLog << pb_struct.msg_req << "|" << rpc_controller->PeerAddr()->toString() 
       << "|. Set client send request data:" << request->ShortDebugString();
   RpcInfoLog << "============================================================";
-  rpcClient->setTimeout(rpc_controller->Timeout());
+  rpc_client_->setTimeout(rpc_controller->Timeout());
 
   // !!!
   // 关键函数，从pb_struct.msg_req序列中获得返回数据
   TinyPbStruct::pb_sptr res_data;
-  int rt = rpcClient->sendAndRecvTinyPb(addr_, pb_struct.msg_req, res_data);
+  int rt = rpc_client_->sendAndRecvTinyPb(pb_struct.msg_req, res_data);
   if (rt != 0) {
-    rpc_controller->SetError(rt, rpcClient->getErrInfo());
-    RpcErrorLog << pb_struct.msg_req << "|call rpc occur client error, service_full_name=" << pb_struct.service_full_name << ", error_code=" 
-        << rt << ", error_info = " << rpcClient->getErrInfo();
+    rpc_controller->SetError(rt, rpc_client_->getErrInfo());
     return;
   }
 

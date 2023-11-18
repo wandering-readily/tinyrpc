@@ -175,7 +175,6 @@ public:
   std::set<tinyrpc::NetAddress::sptr> addrs_;
   int timeout_ = 5000;
 
-  class RpcClient;
 };
 
 }; // namespace tinyrpc

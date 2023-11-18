@@ -889,7 +889,7 @@ sh run.sh order_server
 ```
 [ikerli@localhost test_client]$ ./test_query_order_detail_client 
 Send to tinyrpc server 0.0.0.0:12345, requeset body: 
-Success get response frrom tinyrpc server 0.0.0.0:12345, response body: res_info: "OK"
+Success get response from tinyrpc server 0.0.0.0:12345, response body: res_info: "OK"
 ```
 
 否则，你会看到失败的具体原因，请根据错误码自行排查。例如这里错误显示为 peer closed，多半是服务没有启动，导致该端口没人监听。

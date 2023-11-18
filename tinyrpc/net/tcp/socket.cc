@@ -14,10 +14,7 @@ int createNonblockingOrDie(sa_family_t family)
   // family: "AF_INET"(IPV4)和"AF_INET6"(IPV6)
   int sockfd = ::socket(family, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, IPPROTO_TCP);
   if (sockfd < 0) [[unlikely]] {
-    std::stringstream ss;
-		ss << __FILE__ << "-" << __func__ << "-" << __LINE__ <<  ", errno " << errno << ", " << strerror(errno) << "\n";
-		throw(ss.str());
-    Exit(0);
+    locateErrorExit
   }
   return sockfd;
 }
@@ -52,7 +49,7 @@ void setReusePort(int sockfd, bool on) {
   int ret = ::setsockopt(sockfd, SOL_SOCKET, SO_REUSEPORT,
                          &optval, static_cast<socklen_t>(sizeof optval));
   if (ret < 0 && on) [[unlikely]] {
-    tinyrpc::Exit(0);
+    locateErrorExit
   }
 }
 

@@ -108,21 +108,15 @@ ssize_t read_hook(tinyrpc::FdEvent::sptr fd_event, void *buf, size_t count) {
 	// because reactor should always care read event when a connection sockfd was created
 	// so if first call sys read, and read return success, this fucntion will not register read event and return
 	// for this connection sockfd, reactor will never care read event
-  // ssize_t n = g_sys_read_fun(fd, buf, count);
-  // int savedErrno = errno;
-  // if (n > 0) {
-    // return n;
-  // } else {
-	// if (n == 0 || (n < 0 && savedErrno == EAGAIN)) {
-		// errno = savedErrno;
-		// return n;
-	// } else if (savedErrno != EINTR) {
-		// std::stringstream ss;
-		// ss << __FILE__ << "-" << __func__ << "-" << __LINE__ <<  ", errno " << errno << ", " << strerror(errno) << "\n";
-		// throw(ss.str());
-		// Exit(0);
-	// }
-  // }
+  ssize_t n = g_sys_read_fun(fd, buf, count);
+  int savedErrno = errno;
+  if (n >= 0) {
+    return n;
+  } else {
+	if (savedErrno != EINTR && savedErrno != EAGAIN) {
+		locateErrorExit
+	}
+  }
 
 	// 设置当前协程事件
 	toEpoll(fd_event, tinyrpc::IOEvent::READ);
@@ -185,10 +179,7 @@ int accept_hook(tinyrpc::FdEvent::sptr fd_event, struct sockaddr *addr, socklen_
 		// return n;
 	
 	default:
-	 	std::stringstream ss;
-		ss << __FILE__ << "-" << __func__ << "-" << __LINE__ <<  ", errno " << errno << ", " << strerror(errno) << "\n";
-		throw(ss.str());
-		Exit(0);
+		locateErrorExit
 	}
   }
 
@@ -229,21 +220,15 @@ ssize_t write_hook(tinyrpc::FdEvent::sptr fd_event, const void *buf, size_t coun
 
 	fd_event->setNonBlock();
 
-  // ssize_t n = g_sys_write_fun(fd, buf, count);
-  // int savedErrno = errno;
-  // if (n > 0) {
-    // return n;
-  // } else {
-	// if (n == 0 || (n < 0 && savedErrno == EAGAIN)) {
-		// errno = savedErrno;
-		// return n;
-	// } else if (savedErrno != EINTR) {
-		// std::stringstream ss;
-		// ss << __FILE__ << "-" << __func__ << "-" << __LINE__ <<  ", errno " << errno << ", " << strerror(errno) << "\n";
-		// throw(ss.str());
-		// Exit(0);
-	// }
-  // }
+  ssize_t n = g_sys_write_fun(fd, buf, count);
+  int savedErrno = errno;
+  if (n >= 0) {
+    return n;
+  } else {
+	if (savedErrno != EINTR && savedErrno != EAGAIN) {
+		locateErrorExit
+	}
+  }
 
 	toEpoll(fd_event, tinyrpc::IOEvent::WRITE);
 
@@ -300,10 +285,7 @@ int connect_hook(tinyrpc::FdEvent::sptr fd_event, const struct sockaddr *addr, s
 
 	case EISCONN:
 	default:
-		std::stringstream ss;
-		ss << __FILE__ << "-" << __func__ << "-" << __LINE__ <<  ", errno " << errno << ", " << strerror(errno) << "\n";
-		throw(ss.str());
-		Exit(0);
+		locateErrorExit
 	}
   }
 
