@@ -16,6 +16,7 @@ int createNonblockingOrDie(sa_family_t family)
   if (sockfd < 0) [[unlikely]] {
     locateErrorExit
   }
+  // printf("open fd %d\n", sockfd);
   return sockfd;
 }
 

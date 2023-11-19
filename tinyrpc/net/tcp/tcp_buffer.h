@@ -35,6 +35,8 @@ class TcpBuffer {
 
   void clearBuffer();
 
+  void clearIndex();
+
   int getSize();
 
   // const char* getBuffer();

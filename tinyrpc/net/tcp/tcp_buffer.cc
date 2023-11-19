@@ -6,7 +6,9 @@
 
 namespace tinyrpc {
 
-TcpBuffer::TcpBuffer(int size) : m_buffer(std::vector<char> (size)) {
+TcpBuffer::TcpBuffer(int size) {
+  assert(size != 0);
+  m_buffer = std::vector<char> (size);
 	// m_buffer.resize(size);	
 }
 
@@ -112,6 +114,11 @@ int TcpBuffer::getSize() {
 
 void TcpBuffer::clearBuffer() {
   m_buffer.clear();
+  m_read_index = 0;
+  m_write_index = 0;
+}
+
+void TcpBuffer::clearIndex() {
   m_read_index = 0;
   m_write_index = 0;
 }

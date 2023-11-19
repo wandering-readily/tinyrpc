@@ -28,13 +28,17 @@ RpcClient::RpcClient(NetAddress::sptr peer_addr, \
 
   this->conn_ = rpcClientGroups->getConnection(peer_addr);
 
+  this->conn_->m_reply_datas.clear();
+  this->conn_->m_read_buffer->clearIndex();
+  this->conn_->m_read_buffer->clearIndex();
+
 }
 
 RpcClient::~RpcClient() {
   std::shared_ptr<RpcClientGroups> rpcClientGroups = \
       weakRpcClientGroups_.lock();
   assert(rpcClientGroups != nullptr);
-  rpcClientGroups->delConnection(this->conn_->m_peer_addr);
+  rpcClientGroups->delConnection(this->conn_);
 }
 
 
@@ -132,7 +136,7 @@ int RpcClient::sendAndRecvTinyPb(const std::string& msg_no, TinyPbStruct::pb_spt
   }
 
   this->conn_->setUpClient();
-  timer->cancelCB();
+  // timer->cancelCB();
   // 写输出事件
   // 把protobuf格式的request任务发送给服务器
   this->conn_->output();
@@ -158,7 +162,7 @@ int RpcClient::sendAndRecvTinyPb(const std::string& msg_no, TinyPbStruct::pb_spt
 
   }
 
-  timer->cancelCB();
+  // timer->cancelCB();
   m_err_info = "";
   return 0;
 
@@ -183,24 +187,19 @@ err_deal:
 
 bool RpcClient::updateTcpState() {
 
-  // 已经接收到的package, 和read_buffer, write_buffer
-  // 在一次连接之后不保证清零
-  this->conn_->m_reply_datas.clear();
-  this->conn_->m_read_buffer->clearBuffer();
-  this->conn_->m_write_buffer->clearBuffer();
-
   struct tcp_info info;
   int len = sizeof(info);
   getsockopt(this->conn_->m_fd, IPPROTO_TCP, TCP_INFO, &info, (socklen_t *)&len);
 
   if(info.tcpi_state != TCP_ESTABLISHED) {
     // 避免第一次resetFd
-    if (this->conn_->getState() != Closed) {
+    if (this->conn_->getState() != NotConnected && this->conn_->getState() != Closed) {
       // 从client的角度来看
       // 已经得到想要的数据包了，可以close fd
+      printf("conn fd %d close\n", this->conn_->getFd());
       resetFd();
+      this->conn_->setState(Closed);
     }
-    this->conn_->setState(Closed);
     return false;
   }
   return true;
@@ -226,7 +225,7 @@ RpcClientGroups::RpcClientGroups(int maxFreeConns, ProtocalType type) \
 
 
 RpcClientGroups::~RpcClientGroups() {
-  for (auto &[conn_flag, conn] : workConns_) {
+  for (auto &conn : workConns_) {
     int fd = conn->getFd();
     if (fd > 0) [[likely]] {
       // fdEventPool_->getFdEvent(fd)->unregisterFromReactor(); 
@@ -235,7 +234,7 @@ RpcClientGroups::~RpcClientGroups() {
   }
 
   for (auto &[conn_flag, conns] : freeConns_) {
-    for (auto &conn : conns) {
+    for (auto &conn : conns->getConns()) {
       int fd = conn->getFd();
       if (fd > 0) [[likely]] {
         // fdEventPool_->getFdEvent(fd)->unregisterFromReactor(); 
@@ -250,6 +249,7 @@ RpcClientGroups::~RpcClientGroups() {
 TcpConnection::sptr RpcClientGroups::getConnection(NetAddress::sptr peer_addr) {
 
   const std::string conn_flag = peer_addr->toString();  
+  TcpConnection::sptr rs;
     {
       bool hasFree = false;
       auto it = freeConns_.end();
@@ -263,18 +263,27 @@ TcpConnection::sptr RpcClientGroups::getConnection(NetAddress::sptr peer_addr) {
 
       if (hasFree) {
         // 一定存在
-        Mutex &mutex = freeConnMutexs_[conn_flag];
+        Mutex &mutex = it->second->getMutex();
         Mutex::Lock lock(mutex);
-        if (!it->second.empty()) {
-          auto rs = it->second.back();
-          it->second.pop_back();
-          return rs;
+        std::list<TcpConnection::sptr> &conns = it->second->getConns();
+        if (!conns.empty()) {
+          rs = conns.back();
+          conns.pop_back();
         }
       }
     }
 
+    if (rs) {
+      {
+        Mutex::Lock lock(workConns_mutex_);
+        workConns_.insert(rs);
+      }
+      return rs;
+    }
+
     int family = peer_addr->getFamily();
     // m_fd = socket(AF_INET, SOCK_STREAM, 0);
+    // printf("make new connection\n");
     int fd = createNonblockingOrDie(family);
     // 这里不应该存在，TCP socket不应该关了又开
     // client应该重新启动addr
@@ -288,23 +297,20 @@ TcpConnection::sptr RpcClientGroups::getConnection(NetAddress::sptr peer_addr) {
       fd, 128, peer_addr, local_addr_, fdEventPool_);
     {
       Mutex::Lock lock(workConns_mutex_);
-      workConns_[conn_flag] = conn;
+      workConns_.insert(conn);
     }
 
     return conn;
 }
 
-void RpcClientGroups::delConnection(NetAddress::sptr peer_addr) {
+void RpcClientGroups::delConnection(TcpConnection::sptr conn) {
 
-  const std::string conn_flag = peer_addr->toString();
-  TcpConnection::sptr conn;
+  auto conn_flag = conn->getPeerAddr()->toString();
   {
     Mutex::Lock lock(workConns_mutex_);
-    auto it = workConns_.find(conn_flag);
-    if (it != workConns_.end()) {
-      conn = it->second;
-      workConns_.erase(it);
-    }
+    auto it = workConns_.find(conn);
+    assert(it != workConns_.end());
+    workConns_.erase(it);
   }
 
   {
@@ -312,15 +318,14 @@ void RpcClientGroups::delConnection(NetAddress::sptr peer_addr) {
       Mutex::Lock lock(freeConns_mutex_);
       auto it = freeConns_.find(conn_flag);
       if (it == freeConns_.end()) {
-        freeConns_[conn_flag] = std::list<TcpConnection::sptr>{};
-        freeConnMutexs_[conn_flag] = Mutex{};
+        freeConns_[conn_flag] = std::make_shared<freeConnBucket>();
       }
     }
 
-    Mutex &mutex = freeConnMutexs_[conn_flag];
+    Mutex &mutex = freeConns_[conn_flag]->getMutex();
     {
       Mutex::Lock lock(mutex);
-      std::list<TcpConnection::sptr> &list = freeConns_[conn_flag];
+      std::list<TcpConnection::sptr> &list = freeConns_[conn_flag]->getConns();
       size_t deleteSize = list.size() / maxFreeConns_ + 1;
       while(deleteSize > 1) {
         close(list.front()->getFd());

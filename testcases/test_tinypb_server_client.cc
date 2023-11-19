@@ -65,9 +65,9 @@ int main(int argc, char* argv[]) {
     auto rpc_req3 = std::make_shared<queryAgeReq>();
     auto rpc_res3 = std::make_shared<queryAgeRes>();
 
-    client.CallRpcClient<QueryService>("query_age", rpc_req3.get(), rpc_res3.get(), peer_addr);
+    client.Call<QueryService>("query_age", rpc_req3.get(), rpc_res3.get(), peer_addr);
 
-    std::cout << "response body: " << rpc_res3->ShortDebugString() << std::endl;
+    std::cout << "response body: " << rpc_res3->ShortDebugString() <<  "call times" << i+1 << "\n";
   }
 
   return 0;

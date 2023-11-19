@@ -11,4 +11,5 @@
 count=0
 while ((count < 10000)) ; do
     curl -X GET 'http://127.0.0.1:19999/nonblock?id=1125&req_no=64324325'
+    echo $((++count))
 done

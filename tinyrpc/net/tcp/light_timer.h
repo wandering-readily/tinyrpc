@@ -2,6 +2,7 @@
 #define TINYRPC_NET_TCP_LIGHTTIMER_H
 
 #include <memory>
+#include <atomic>
 #include <google/protobuf/service.h>
 #include <semaphore.h>
 #include "tinyrpc/net/mutex.h"
@@ -46,11 +47,15 @@ private:
   }
 
   sem_t *getwaitAddInLoopSem() {return &sem_waitAddInLoop;}
+  sem_t *getwaitDelInLoopSem() {return &sem_waitDelInLoop;}
 
 private:
   bool called = false;
   int fd_;
   sem_t sem_waitAddInLoop;
+  std::atomic_bool added {false};
+
+  sem_t sem_waitDelInLoop;
   itimerspec value_;
   std::function<void(void)> cb_;
   std::weak_ptr<LightTimerPool> weakLightTimerPool_;
@@ -96,6 +101,7 @@ private:
   std::vector<PISP> pending_add_fds_;
   std::vector<PISP> pending_del_fds_;
 
+  std::map<int, sem_t*> timeCancelChannels;
 };
 
 };

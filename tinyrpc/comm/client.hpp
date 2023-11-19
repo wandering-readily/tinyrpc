@@ -97,6 +97,10 @@ public:
 
 
 
+/*
+ * 同步client的 TCP连接复用
+ * TCP connection的复用
+*/
 class TinyrpcLongLiveClient {
 
 public:
@@ -109,7 +113,9 @@ public:
 
   ~TinyrpcLongLiveClient() = default;
 
-
+  // 这里得到一个NetAddress::sptr，最好一直使用，减少构造
+  // 如果使用新的也没问题，因为 Call()函数RpcClient 优先选取freeConns
+  // 那么这个NetAddress::sptr不会参与构造TcpConnction，一会被释放
   template <typename T, 
     typename=std::enable_if_t<std::is_same_v<IPAddress, T>>>
   // requires (std::is_same_v<IPAddress, T>)
@@ -156,7 +162,7 @@ public:
   
   template <typename S,
     typename=std::enable_if_t<std::is_base_of_v<google::protobuf::Service, S>>>
-  int CallRpcClient(const std::string &method_name, \
+  int Call(const std::string &method_name, \
       google::protobuf::Message *request, \
       google::protobuf::Message *response, \
       tinyrpc::NetAddress::sptr addr) {

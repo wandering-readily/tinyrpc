@@ -14,6 +14,7 @@ LightTimer::LightTimer(int interval, std::function<void(void)> cb, \
     : cb_(cb), weakLightTimerPool_(timerPool) {
 
   sem_init(&sem_waitAddInLoop, 0, 0);
+  sem_init(&sem_waitDelInLoop, 0, 0);
   fd_ = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK|TFD_CLOEXEC);
 
   memset(&value_, 0, sizeof(value_));
@@ -36,6 +37,7 @@ bool LightTimer::registerInLoop() {
   }
 
   sem_wait(getwaitAddInLoopSem());
+  added = true;
 
   int rs = timerfd_settime(fd_, 0, &value_, nullptr);
   if (rs != 0) [[unlikely]] {
@@ -50,7 +52,12 @@ LightTimer::~LightTimer() {
   if (timerPool) {
     timerPool->delLightTimer(fd_);
   }
+  if (added) {
+    sem_wait(getwaitDelInLoopSem());
+  }
+
   sem_destroy(getwaitAddInLoopSem());
+  sem_destroy(getwaitDelInLoopSem());
   close(fd_);
 }
 
@@ -166,11 +173,13 @@ bool LightTimerPool::addLightTimerInLoop(int fd, LightTimer::sptr timer) {
   event.events = EPOLLIN;
 
   if (epoll_ctl(epfd_, op, fd, &event) != 0) {
-    return false;
+    locateErrorExit
   }
   if (is_add) {
     lightTimers_[fd] = timer;
   }
+  timeCancelChannels[fd] = timer->getwaitDelInLoopSem();
+
   sem_post(timer->getwaitAddInLoopSem());
   return true;
 
@@ -181,8 +190,13 @@ bool LightTimerPool::delLightTimerInLoop(int fd) {
   
   int rs = epoll_ctl(epfd_, op, fd, nullptr);
   if (rs != 0) [[unlikely]] {
-    return false;
+    locateErrorExit
   }
+
+  lightTimers_.erase(fd);
+  sem_t *cancelChannel = timeCancelChannels[fd];
+  timeCancelChannels.erase(fd);
+  sem_post(cancelChannel);
   return true;
 
 }

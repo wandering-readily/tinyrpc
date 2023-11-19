@@ -3,6 +3,7 @@
 
 #include <memory>
 #include <list>
+#include <set>
 #include <google/protobuf/service.h>
 #include "tinyrpc/coroutine/coroutine.h"
 #include "tinyrpc/coroutine/coroutine_hook.h"
@@ -81,9 +82,29 @@ class RpcClient {
 
 
 class RpcClientGroups {
+
+ public:
+  class freeConnBucket {
+   public:
+    freeConnBucket() = default;
+    ~freeConnBucket() = default;
+
+    Mutex & getMutex() {return mutex_;}
+    std::list<TcpConnection::sptr> &getConns() {return conns;}
+
+   public:
+    Mutex mutex_;
+    std::list<TcpConnection::sptr> conns;
+  };
+
+ public:
+  typedef std::shared_ptr<freeConnBucket> bucketSptr;
+
+
  public:
   typedef std::shared_ptr<RpcClientGroups> sptr;
   typedef std::weak_ptr<RpcClientGroups> wptr;
+
 
   friend class RpcClient;
 
@@ -96,7 +117,7 @@ class RpcClientGroups {
 
   std::shared_ptr<TcpConnection> getConnection(NetAddress::sptr);
  
-  void delConnection(NetAddress::sptr);
+  void delConnection(TcpConnection::sptr);
 
   FdEventContainer::sptr getFdEventPool() {return fdEventPool_;}
 
@@ -116,12 +137,14 @@ class RpcClientGroups {
   AbstractCodeC::sptr codec_;
 
   Mutex freeConns_mutex_;
-  std::map<std::string, std::list<TcpConnection::sptr>> freeConns_;
-  std::map<std::string, Mutex> freeConnMutexs_;
-
+  std::map<std::string, bucketSptr> freeConns_;
 
   Mutex workConns_mutex_;
-  std::map<std::string, TcpConnection::sptr> workConns_;
+  std::set<TcpConnection::sptr> workConns_;
+
+  // alive fds
+  // 不能做，因为连接不通顺时，会更换fd
+  // std::set<int> aliveFds;
 
   FdEventContainer::sptr fdEventPool_;
 
