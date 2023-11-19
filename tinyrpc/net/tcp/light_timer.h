@@ -1,5 +1,5 @@
-#ifndef TINYRPC_NET_LIGHTTIMER_H
-#define TINYRPC_NET_LIGHTTIMER_H
+#ifndef TINYRPC_NET_TCP_LIGHTTIMER_H
+#define TINYRPC_NET_TCP_LIGHTTIMER_H
 
 #include <memory>
 #include <google/protobuf/service.h>
@@ -28,6 +28,11 @@ public:
 
   bool resetTimer(std::function<void(void)>);
 
+  void cancelCB() {
+    cb_ = [](){};
+    called = true;;
+  }
+
 private:
 
   int getFd() const {return fd_;}
@@ -38,11 +43,6 @@ private:
     cb_();
     cancelCB();
     cancel();
-  }
-
-  void cancelCB() {
-    cb_ = [](){};
-    called = true;;
   }
 
   sem_t *getwaitAddInLoopSem() {return &sem_waitAddInLoop;}

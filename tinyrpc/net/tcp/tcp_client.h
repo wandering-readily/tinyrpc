@@ -46,13 +46,9 @@ class TcpClient {
     return m_err_info;
   }
 
-  NetAddress::sptr getPeerAddr() const {
-    return m_peer_addr;
-  }
+  NetAddress::sptr getPeerAddr() const {return m_peer_addr;}
 
-  NetAddress::sptr getLocalAddr() const {
-    return m_local_addr;
-  }
+  NetAddress::sptr getLocalAddr() const {return m_local_addr;}
 
   AbstractCodeC::sptr getCodeC() {
     return m_codec;

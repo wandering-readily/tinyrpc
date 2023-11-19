@@ -92,6 +92,9 @@ TcpConnection::TcpConnection(AbstractCodeC::sptr codec, tinyrpc::Reactor* reacto
 
   tinyrpc::FdEventContainer::sptr sharedFdEventPool = weakFdEventPool_.lock();
   assert(sharedFdEventPool != nullptr && "sharedFdEventPool had released");
+  // tcp_connection中包含了server coonection 和 client 转发异步connection(coroutine实现)
+  // 因此开启reactor相关设置
+  // 但是client 同步connection(单线程)已经设置为nullptr
   m_fd_event = sharedFdEventPool->getFdEvent(fd);
   m_fd_event->setReactor(m_reactor);
   initBuffer(buff_size); 

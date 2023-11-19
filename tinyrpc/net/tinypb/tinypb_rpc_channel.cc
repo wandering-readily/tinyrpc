@@ -126,12 +126,8 @@ void TinyPbRpcClientChannel::CallMethod(const google::protobuf::MethodDescriptor
     return;
   }
 
-
-  TcpConnection::sptr conn = rpc_client_->getConn();
-  assert(conn != nullptr && "rpcClient had released");
-
-  rpc_controller->SetLocalAddr(conn->getLocalAddr());
-  rpc_controller->SetPeerAddr(conn->getPeerAddr());
+  rpc_controller->SetLocalAddr(rpc_client_->getLocalAddr());
+  rpc_controller->SetPeerAddr(rpc_client_->getPeerAddr());
   
   pb_struct.service_full_name = method->full_name();
   RpcDebugLog << "call service_name = " << pb_struct.service_full_name;
@@ -156,8 +152,8 @@ void TinyPbRpcClientChannel::CallMethod(const google::protobuf::MethodDescriptor
     rpc_controller->SetMsgReq(pb_struct.msg_req);
   }
 
-  AbstractCodeC::sptr codec = conn->getCodec();
-  codec->encode(conn->getOutBuffer(), &pb_struct);
+  AbstractCodeC::sptr codec = rpc_client_->getCodec();
+  codec->encode(rpc_client_->getOutBuffer(), &pb_struct);
   if (!pb_struct.encode_succ) {
     rpc_controller->SetError(ERROR_FAILED_ENCODE, "encode tinypb data error");
     return;

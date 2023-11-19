@@ -9,6 +9,8 @@
 #include "tinyrpc/net/net_address.h"
 #include "tinyrpc/net/tinypb/tinypb_rpc_channel.h"
 
+#include "tinyrpc/net/tcp/rpc_client.h"
+
 
 namespace details {
   template <typename T, typename = void>
@@ -99,7 +101,11 @@ class TinyrpcLongLiveClient {
 
 public:
 
-  TinyrpcLongLiveClient() = default;
+  TinyrpcLongLiveClient(int maxFreeConns = 2, \
+      ProtocalType type = tinyrpc::ProtocalType::TinyPb_Protocal) {
+
+    clientGroups = std::make_shared<RpcClientGroups> (maxFreeConns, type);
+  }
 
   ~TinyrpcLongLiveClient() = default;
 
@@ -107,38 +113,38 @@ public:
   template <typename T, 
     typename=std::enable_if_t<std::is_same_v<IPAddress, T>>>
   // requires (std::is_same_v<IPAddress, T>)
-  void addRpcClient(std::string ip, uint16_t port) {
-    addrs_.insert(std::make_shared<T> (ip, port));
+  tinyrpc::NetAddress::sptr addRpcClientAddr(std::string ip, uint16_t port) {
+    return (std::make_shared<T> (ip, port));
   }
 
   template <typename T, 
     typename=std::enable_if_t<std::is_same_v<IPAddress, T>>>
-  void addRpcClient(std::string addr) {
-    addrs_.insert(std::make_shared<T> (addr));
+  tinyrpc::NetAddress::sptr addRpcClientAddr(std::string addr) {
+    return (std::make_shared<T> (addr));
   }
 
   template <typename T, 
     typename=std::enable_if_t<std::is_same_v<IPAddress, T>>>
-  void addRpcClient(uint16_t port) {
-    addrs_.insert(std::make_shared<T> (port));
+  tinyrpc::NetAddress::sptr addRpcClientAddr(uint16_t port) {
+    return (std::make_shared<T> (port));
   }
 
   template <typename T, 
     typename=std::enable_if_t<std::is_same_v<IPAddress, T>>>
-  void addRpcClient(sockaddr_in addr) {
-    addrs_.insert(std::make_shared<T> (addr));
+  tinyrpc::NetAddress::sptr addRpcClientAddr(sockaddr_in addr) {
+    return (std::make_shared<T> (addr));
   }
 
   template <typename T, 
     typename=std::enable_if_t<std::is_same_v<UnixDomainAddress, T>>>
-  void addRpcClient(std::string path, UnixDomainAddressFlag dummy) {
-    addrs_.insert(std::make_shared<T> (path));
+  tinyrpc::NetAddress::sptr addRpcClientAddr(std::string path, UnixDomainAddressFlag dummy) {
+    return (std::make_shared<T> (path));
   }
 
   template <typename T, 
     typename=std::enable_if_t<std::is_same_v<UnixDomainAddress, T>>>
-	void addRpcClient(sockaddr_un addr, UnixDomainAddressFlag dummy) {
-    addrs_.insert(std::make_shared<T> (addr));
+	tinyrpc::NetAddress::sptr addRpcClientAddr(sockaddr_un addr, UnixDomainAddressFlag dummy) {
+    return (std::make_shared<T> (addr));
   }
 
 
@@ -148,32 +154,33 @@ public:
 
 public:
   
-  // template <typename S,
-    // typename=std::enable_if_t<std::is_base_of_v<google::protobuf::Service, S>>>
-  // int Call(const std::string &method_name, \
-      // google::protobuf::Message *request, \
-      // google::protobuf::Message *response) {
+  template <typename S,
+    typename=std::enable_if_t<std::is_base_of_v<google::protobuf::Service, S>>>
+  int CallRpcClient(const std::string &method_name, \
+      google::protobuf::Message *request, \
+      google::protobuf::Message *response, \
+      tinyrpc::NetAddress::sptr addr) {
 
-    // tinyrpc::TinyPbRpcChannel channel(addr_);
-    // auto stub = std::make_unique<details::has_Stub_t<S>> (&channel);
+    tinyrpc::TinyPbRpcClientChannel channel(std::make_shared<RpcClient> (addr, clientGroups));
+    auto stub = std::make_unique<details::has_Stub_t<S>> (&channel);
 
-    // TinyPbRpcController rpc_controller;
-    // rpc_controller.SetTimeout(timeout_);
+    TinyPbRpcController rpc_controller;
+    rpc_controller.SetTimeout(timeout_);
 
-    // const google::protobuf::MethodDescriptor* method = 
-      // S::descriptor()->FindMethodByName(method_name);
+    const google::protobuf::MethodDescriptor* method = 
+      S::descriptor()->FindMethodByName(method_name);
     
-    // std::function<void()> reply_package_func = [](){};
-    // TinyPbRpcClosure closure(reply_package_func);
+    std::function<void()> reply_package_func = [](){};
+    TinyPbRpcClosure closure(reply_package_func);
 
-    // stub->CallMethod(method, &rpc_controller, request, response, &closure);
-    // return rpc_controller.ErrorCode();
-  // }
+    stub->CallMethod(method, &rpc_controller, request, response, &closure);
+    return rpc_controller.ErrorCode();
+  }
 
  protected:
 
-  std::set<tinyrpc::NetAddress::sptr> addrs_;
   int timeout_ = 5000;
+  RpcClientGroups::sptr clientGroups;
 
 };
 

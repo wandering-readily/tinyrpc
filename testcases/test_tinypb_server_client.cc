@@ -38,25 +38,37 @@ void test_client() {
 
 int main(int argc, char* argv[]) {
 
-  test_client();
+  // test_client();
 
-  tinyrpc::TinyrpcClient<tinyrpc::IPAddress> client{
-      std::string("127.0.0.1"), (uint16_t)20000};
-  queryAgeReq rpc_req;
-  queryAgeRes rpc_res;
+  // tinyrpc::TinyrpcClient<tinyrpc::IPAddress> client{
+      // std::string("127.0.0.1"), (uint16_t)20000};
+  // queryAgeReq rpc_req;
+  // queryAgeRes rpc_res;
 
-  client.Call<QueryService>("query_age", &rpc_req, &rpc_res);
+  // client.Call<QueryService>("query_age", &rpc_req, &rpc_res);
 
 
-  auto rpc_req2 = std::make_shared<queryAgeReq>();
-  auto rpc_res2 = std::make_shared<queryAgeRes>();
-  tinyrpc::AsyncCor_TinyrpcClient<tinyrpc::IPAddress> async_client(
-    std::string("127.0.0.1"), (uint16_t)(20000), 0, 0);
-  {
-  auto asyncer = async_client.Async_Call<QueryService>("query_age", rpc_req2, rpc_res2);
-  asyncer->wait();
+  // auto rpc_req2 = std::make_shared<queryAgeReq>();
+  // auto rpc_res2 = std::make_shared<queryAgeRes>();
+  // tinyrpc::AsyncCor_TinyrpcClient<tinyrpc::IPAddress> async_client(
+    // std::string("127.0.0.1"), (uint16_t)(20000), 0, 0);
+  // {
+  // auto asyncer = async_client.Async_Call<QueryService>("query_age", rpc_req2, rpc_res2);
+  // asyncer->wait();
+  // }
+  // std::cout << "response body: " << rpc_res2->ShortDebugString() << std::endl;
+
+
+  tinyrpc::TinyrpcLongLiveClient client;
+  auto peer_addr = client.addRpcClientAddr<tinyrpc::IPAddress>(std::string("127.0.0.1"), (uint16_t)(20000));
+  for (size_t i = 0; i < 10000; i++) {
+    auto rpc_req3 = std::make_shared<queryAgeReq>();
+    auto rpc_res3 = std::make_shared<queryAgeRes>();
+
+    client.CallRpcClient<QueryService>("query_age", rpc_req3.get(), rpc_res3.get(), peer_addr);
+
+    std::cout << "response body: " << rpc_res3->ShortDebugString() << std::endl;
   }
-  std::cout << "response body: " << rpc_res2->ShortDebugString() << std::endl;
 
   return 0;
 }

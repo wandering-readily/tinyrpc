@@ -107,8 +107,8 @@ class TcpConnection : public std::enable_shared_from_this<TcpConnection> {
     m_weak_slot = slot;
   }
 
-  NetAddress::sptr getLocalAddr() {return m_local_addr;}
-  NetAddress::sptr getPeerAddr() {return m_peer_addr;}
+  NetAddress::sptr getLocalAddr() const {return m_local_addr;}
+  NetAddress::sptr getPeerAddr() const {return m_peer_addr;}
 
   bool isServerConn() {return m_connection_type == ConnectionType::ServerConnection;}
 
