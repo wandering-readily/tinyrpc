@@ -10,7 +10,7 @@
 #include "tinyrpc/net/tinypb/tinypb_rpc_channel.h"
 
 #include "tinyrpc/net/tcp/rpc_client.h"
-
+#include "tinyrpc/comm/error_code.h"
 
 namespace details {
   template <typename T, typename = void>
@@ -108,7 +108,7 @@ public:
   TinyrpcLongLiveClient(int maxFreeConns = 2, \
       ProtocalType type = tinyrpc::ProtocalType::TinyPb_Protocal) {
 
-    clientGroups = std::make_shared<RpcClientGroups> (maxFreeConns, type);
+    clientGroups_ = std::make_shared<RpcClientGroups> (maxFreeConns, type);
   }
 
   ~TinyrpcLongLiveClient() = default;
@@ -158,16 +158,96 @@ public:
     timeout_ =  timeout;
   }
 
+
+public:
+  
+  // 一个不立即释放的rpcClient
+  // getByID更加节省开销
+  long long getID(tinyrpc::NetAddress::sptr addr) {
+    long long id = 0;
+    {
+      Mutex::Lock lock(idMutex_);
+      ID_++;
+      id = ID_;
+    }
+
+    {
+      Mutex::Lock lock(clientsMutex_);
+      clients_[id] = std::make_shared<RpcClient> (addr, clientGroups_);
+    }
+
+    return id;
+  }
+
+  void returnID(long long id) {
+    Mutex::Lock lock(clientsMutex_);
+    auto it = clients_.find(id);
+    if (it != clients_.end()) {
+      clients_.erase(it);
+    }
+  }
+
+template <typename S,
+    typename=std::enable_if_t<std::is_base_of_v<google::protobuf::Service, S>>>
+  int CallByID(const std::string &method_name, \
+      google::protobuf::Message *request, \
+      google::protobuf::Message *response, \
+      long long id) {
+
+    RpcClient::sptr client;
+    {
+      Mutex::Lock lock(clientsMutex_);
+      auto it = clients_.find(id);
+      if (it == clients_.end()) {
+        return tinyrpc::ERROR_RPCCLIENT_ID;
+      }
+      client = it->second;
+    }
+
+    return CallByRpcClient<S> (method_name, request, response, client);
+  }
+
 public:
   
   template <typename S,
     typename=std::enable_if_t<std::is_base_of_v<google::protobuf::Service, S>>>
-  int Call(const std::string &method_name, \
+  int CallByAddr(const std::string &method_name, \
       google::protobuf::Message *request, \
       google::protobuf::Message *response, \
       tinyrpc::NetAddress::sptr addr) {
 
-    tinyrpc::TinyPbRpcClientChannel channel(std::make_shared<RpcClient> (addr, clientGroups));
+
+    return CallByRpcClient<S> (method_name, request, response, \
+        std::make_shared<RpcClient> (addr, clientGroups_));
+
+    // tinyrpc::TinyPbRpcClientChannel channel(std::make_shared<RpcClient> (addr, clientGroups_));
+    // auto stub = std::make_unique<details::has_Stub_t<S>> (&channel);
+
+    // TinyPbRpcController rpc_controller;
+    // rpc_controller.SetTimeout(timeout_);
+
+    // const google::protobuf::MethodDescriptor* method = 
+      // S::descriptor()->FindMethodByName(method_name);
+    
+    // std::function<void()> reply_package_func = [](){};
+    // TinyPbRpcClosure closure(reply_package_func);
+
+    // stub->CallMethod(method, &rpc_controller, request, response, &closure);
+    // return rpc_controller.ErrorCode();
+  }
+
+
+
+ private:
+
+  template <typename S,
+    typename=std::enable_if_t<std::is_base_of_v<google::protobuf::Service, S>>>
+  int CallByRpcClient(const std::string &method_name, \
+      google::protobuf::Message *request, \
+      google::protobuf::Message *response, \
+      RpcClient::sptr client) {
+
+    tinyrpc::TinyPbRpcClientChannel channel(client);
     auto stub = std::make_unique<details::has_Stub_t<S>> (&channel);
 
     TinyPbRpcController rpc_controller;
@@ -183,11 +263,18 @@ public:
     return rpc_controller.ErrorCode();
   }
 
+
  protected:
 
   int timeout_ = 5000;
-  RpcClientGroups::sptr clientGroups;
 
+  Mutex idMutex_;
+  long long int ID_ = 0;
+
+  Mutex clientsMutex_;
+  std::map<long long, RpcClient::sptr> clients_;
+
+  RpcClientGroups::sptr clientGroups_;
 };
 
 }; // namespace tinyrpc

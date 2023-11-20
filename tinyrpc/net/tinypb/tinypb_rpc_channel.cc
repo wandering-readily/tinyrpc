@@ -14,6 +14,7 @@
 #include "tinyrpc/comm/run_time.h"
 
 #include "tinyrpc/net/tcp/tcp_connection.h"
+#include "tinyrpc/comm/log.h"
 
 
 namespace tinyrpc {

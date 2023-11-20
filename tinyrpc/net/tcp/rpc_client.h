@@ -60,6 +60,8 @@ class RpcClient {
   
   bool updateTcpState();
 
+public:
+
   TcpConnection::sptr getConn() {return conn_;}
 
  private:

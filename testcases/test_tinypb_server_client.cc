@@ -61,14 +61,22 @@ int main(int argc, char* argv[]) {
 
   tinyrpc::TinyrpcLongLiveClient client;
   auto peer_addr = client.addRpcClientAddr<tinyrpc::IPAddress>(std::string("127.0.0.1"), (uint16_t)(20000));
-  for (size_t i = 0; i < 10000; i++) {
+  auto peer_addr2 = client.addRpcClientAddr<tinyrpc::IPAddress>(std::string("127.0.0.1"), (uint16_t)(20000));
+  long long id = client.getID(peer_addr2);
+
+  for (size_t i = 0; i < 100; i++) {
     auto rpc_req3 = std::make_shared<queryAgeReq>();
     auto rpc_res3 = std::make_shared<queryAgeRes>();
+    client.CallByAddr<QueryService>("query_age", rpc_req3.get(), rpc_res3.get(), peer_addr);
+    std::cout << "response body1: " << rpc_res3->ShortDebugString() <<  "call times" << i+1 << "\n";
 
-    client.Call<QueryService>("query_age", rpc_req3.get(), rpc_res3.get(), peer_addr);
-
-    std::cout << "response body: " << rpc_res3->ShortDebugString() <<  "call times" << i+1 << "\n";
+    auto rpc_req4 = std::make_shared<queryAgeReq>();
+    auto rpc_res4 = std::make_shared<queryAgeRes>();
+    client.CallByID<QueryService>("query_age", rpc_req4.get(), rpc_res4.get(), id);
+    std::cout << "response body2: " << rpc_res3->ShortDebugString() <<  "call times" << i+1 << "\n";
   }
+
+
 
   return 0;
 }

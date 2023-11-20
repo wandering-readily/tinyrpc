@@ -7,6 +7,8 @@
 
 > - 添加template client模板(SIFNAE)，避免不合理调用
 
+>- 同步client callByAddr callByID(更加节省开销) 很好地节省了开销
+
 > - 添加轻型timer, TimerPool
 
 > - 原实现定时删除connection，只有一次服务，无论是client还是server，增加同步调用的tcp复用，异步调用使用tcp复用则会出错
