@@ -113,11 +113,11 @@ ssize_t read_hook(tinyrpc::FdEvent::sptr fd_event, void *buf, size_t count, bool
   if (n >= 0) {
     return n;
   } else {
-	if (savedErrno == EAGAIN && !beginRead) [[unlikely]] {
+	if (savedErrno == EAGAIN && !beginRead) {
 		errno = savedErrno;
 		return n;
 	}
-	if (savedErrno != EINTR && savedErrno != EAGAIN) {
+	if (savedErrno != EINTR && savedErrno != EAGAIN) [[unlikely]] {
 		locateErrorExit
 	}
   }

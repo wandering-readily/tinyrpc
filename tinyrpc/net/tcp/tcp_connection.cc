@@ -219,6 +219,9 @@ void TcpConnection::input() {
     // 这样会产生很多问题，需要对于每种codec添加validaty方法!!! ==> 以后再添加(主要是HTTP没有找到简单的方法)
     // 只有接收到一个合格的包才退出input()函数
 
+    // ioctl(m_fd, FIONREAD, &avail); 也可能解决不了这个问题
+    // 只有在外部检验validaty才停止收包方法好用
+
     int rt = read_hook(fdEventPool->getFdEvent(m_fd), \
       &(m_read_buffer->m_buffer[write_index]), 
       read_count, count == 0);
@@ -242,7 +245,7 @@ void TcpConnection::input() {
     // server接收到FIN, read() ==> 0, server关闭连接
     // 这样就避免直接close, 有些数据没有及时读取和发送
     if (rt <= 0) {
-      if (rt == 0 || savedErrno == EAGAIN) {
+      if (rt == 0 || savedErrno == EAGAIN) [[likely]] {
         // 如果是mainCor，那么直接关闭连接 ==> client 同步异步连接都必须在mainCor
         // 如果不在mainCor，那么在IOThread，就已经读完所有数据
         read_all = true;
@@ -366,7 +369,7 @@ void TcpConnection::output() {
     int savedErrno = errno;
     // RpcInfoLog << "write end";
     if (rt <= 0) {
-      if (rt == 0 || savedErrno == EAGAIN) {
+      if (rt == 0 || savedErrno == EAGAIN) [[likely]] {
         break;
 
       } else if (savedErrno == EINTR) {
