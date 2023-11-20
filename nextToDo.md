@@ -20,7 +20,7 @@
 如果rt == read_count 且 package全部传入完;  这会让read_hook会在EPOLL_WAIT等待;
 在tinypb_codec方法 可以分析packageLen，那么很好避免这一点;
 而HTTP方法 header['Content-Type']不好分析packageLen
->   - **已经解决，read_hook()填入一个参数表示这次read_hook是不是持续read的第二次，如果是的话，且g_sys_read返回值为-1，errno=EAGAIN那么就要返回**
+>   - **已经解决部分，read_hook()填入一个参数表示这次read_hook是不是持续read的第二次，如果是的话，且g_sys_read返回值为-1，errno=EAGAIN那么就要返回；还是有问题存在!!!，见原文**
 
 
 > - 增加注册服务中心，转发节点（HTTP实现）仿照https://github.com/wandering-readily/7days-golang.git 的gee-cache, gee-rpc设计

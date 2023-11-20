@@ -212,7 +212,13 @@ void TcpConnection::input() {
      */
     // 如果count != 0，代表不是已经开始读，
     // toEpoll之前的read发生EAGAIN错误时会返回rt==-1, errno==EAGAIN
-    // 这是为了解决rt == read_count时，包已经读完了但是还会read_hook()陷入toEpoll等待问题
+    // 这是为了部分解决rt == read_count时，包已经读完了但是还会read_hook()陷入toEpoll等待问题
+
+    // 但这样还是有问题存在的，如果发的包比较大，那么一个包的接受过程中，
+    // read_hook()可能是X, 0, X,...序列长度，那么第二次就会退出去处理包
+    // 这样会产生很多问题，需要对于每种codec添加validaty方法!!! ==> 以后再添加(主要是HTTP没有找到简单的方法)
+    // 只有接收到一个合格的包才退出input()函数
+
     int rt = read_hook(fdEventPool->getFdEvent(m_fd), \
       &(m_read_buffer->m_buffer[write_index]), 
       read_count, count == 0);
