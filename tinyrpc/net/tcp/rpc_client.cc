@@ -192,6 +192,7 @@ bool RpcClient::updateTcpState() {
   getsockopt(this->conn_->m_fd, IPPROTO_TCP, TCP_INFO, &info, (socklen_t *)&len);
 
   if(info.tcpi_state != TCP_ESTABLISHED) {
+    // printf("conn fd %d disconnect\n", this->conn_->getFd());
     // 避免第一次resetFd
     if (this->conn_->getState() != NotConnected && this->conn_->getState() != Closed) {
       // 从client的角度来看

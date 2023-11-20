@@ -26,7 +26,7 @@ class FdEvent;
 
 int accept_hook(std::shared_ptr<FdEvent> , struct sockaddr *, socklen_t *);
 
-ssize_t read_hook(std::shared_ptr<FdEvent> , void *, size_t);
+ssize_t read_hook(std::shared_ptr<FdEvent> , void *, size_t, bool);
 
 ssize_t write_hook(std::shared_ptr<FdEvent> , const void *, size_t);
 

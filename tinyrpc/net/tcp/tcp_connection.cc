@@ -197,7 +197,25 @@ void TcpConnection::input() {
     RpcDebugLog << "m_read_buffer size=" << m_read_buffer->getBufferVector().size() << "rd=" << m_read_buffer->readIndex() << "wd=" << m_read_buffer->writeIndex();
     tinyrpc::FdEventContainer::sptr fdEventPool = weakFdEventPool_.lock();
     assert(fdEventPool != nullptr && "fdEventPool had released");
-    int rt = read_hook(fdEventPool->getFdEvent(m_fd), &(m_read_buffer->m_buffer[write_index]), read_count);
+
+    /*
+     * ???
+     * !!!
+     * if (count == packageLen) 
+     * 这里有一个问题，
+     *    如果rt == read_count 且 package全部传入完
+     *    这会让read_hook会在EPOLL_WAIT等待
+     * 
+     * 在tinypb_codec方法 可以分析packageLen，那么很好避免这一点
+     *
+     * 而HTTP方法 header['Content-Type']不好分析packageLen
+     */
+    // 如果count != 0，代表不是已经开始读，
+    // toEpoll之前的read发生EAGAIN错误时会返回rt==-1, errno==EAGAIN
+    // 这是为了解决rt == read_count时，包已经读完了但是还会read_hook()陷入toEpoll等待问题
+    int rt = read_hook(fdEventPool->getFdEvent(m_fd), \
+      &(m_read_buffer->m_buffer[write_index]), 
+      read_count, count == 0);
     int savedErrno = errno;
     if (rt > 0) {
       count += rt;
@@ -222,7 +240,9 @@ void TcpConnection::input() {
         // 如果是mainCor，那么直接关闭连接 ==> client 同步异步连接都必须在mainCor
         // 如果不在mainCor，那么在IOThread，就已经读完所有数据
         read_all = true;
-        if (isServerConn()) {
+        // 也是解决packageLen问题
+        // 读了字节server就不要close_flag了，因为很可能还有longLive连接
+        if (isServerConn() && count == 0) {
           close_flag = true;
         }
         break;
@@ -240,20 +260,12 @@ void TcpConnection::input() {
         // RpcDebugLog << "read_count == rt";
         // is is possible read more data, should continue read
         // 这里必读入字节，而且packageLen初始值为0
-          /*
-           * ???
-           * !!!
-           * if (count == packageLen) 
-           * 这里有一个问题，
-           *    如果rt == read_count 且 package全部传入完
-           *    这会让read_hook会在EPOLL_WAIT等待
-           * 
-           * 在tinypb_codec方法 可以分析packageLen，那么很好避免这一点
-           *
-           * 而HTTP方法 header['Content-Type']不好分析packageLen
-           */
         continue;
       } else if (rt < read_count) {
+        // 可能没读到EOF，被信号打断
+        if (savedErrno == EINTR) {
+          continue;
+        }
         // RpcDebugLog << "read_count > rt";
         // read all data in socket buffer, skip out loop
         read_all = true;
@@ -405,6 +417,7 @@ void TcpConnection::clearClient() {
 
 void TcpConnection::shutdownConnection() {
   TcpConnectionState state = getState();
+  printf("shutdown conn fd %d\n", m_fd);
   if (state == Closed || state == NotConnected) {
     RpcDebugLog << "this client has closed";
     return;

@@ -80,7 +80,7 @@ void toEpoll(tinyrpc::FdEvent::sptr fd_event, int events) {
 	// fd_event->updateToReactor();
 }
 
-ssize_t read_hook(tinyrpc::FdEvent::sptr fd_event, void *buf, size_t count) {
+ssize_t read_hook(tinyrpc::FdEvent::sptr fd_event, void *buf, size_t count, bool beginRead) {
 	RpcDebugLog << "this is hook read";
   // 主协程直接调用系统函数
   // 否则要在reactor上监听
@@ -113,6 +113,10 @@ ssize_t read_hook(tinyrpc::FdEvent::sptr fd_event, void *buf, size_t count) {
   if (n >= 0) {
     return n;
   } else {
+	if (savedErrno == EAGAIN && !beginRead) [[unlikely]] {
+		errno = savedErrno;
+		return n;
+	}
 	if (savedErrno != EINTR && savedErrno != EAGAIN) {
 		locateErrorExit
 	}
