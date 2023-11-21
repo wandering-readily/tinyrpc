@@ -37,8 +37,9 @@ RpcClient::RpcClient(NetAddress::sptr peer_addr, \
 RpcClient::~RpcClient() {
   std::shared_ptr<RpcClientGroups> rpcClientGroups = \
       weakRpcClientGroups_.lock();
-  assert(rpcClientGroups != nullptr);
-  rpcClientGroups->delConnection(this->conn_);
+  if (rpcClientGroups) [[likely]] {
+    rpcClientGroups->delConnection(this->conn_);
+  }
 }
 
 

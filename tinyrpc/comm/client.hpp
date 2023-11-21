@@ -35,6 +35,7 @@ namespace tinyrpc {
 struct UnixDomainAddressFlag {};
 
 
+// 不是多线程安全的类
 template <typename T, 
     typename=std::enable_if_t<std::is_same_v<IPAddress, T> || std::is_same_v<UnixDomainAddress, T>>>
     // requires (std::is_same_v<IPAddress, T> || std::is_same_v<UnixDomainAddress, T>)
@@ -74,7 +75,7 @@ public:
       google::protobuf::Message *request, \
       google::protobuf::Message *response) {
 
-    tinyrpc::TinyPbRpcChannel channel(addr_);
+    TinyPbRpcChannel channel(addr_);
     auto stub = std::make_unique<details::has_Stub_t<S>> (&channel);
 
     TinyPbRpcController rpc_controller;
@@ -91,7 +92,7 @@ public:
   }
 
  protected:
-  tinyrpc::NetAddress::sptr addr_;
+  NetAddress::sptr addr_;
   int timeout_ = 5000;
 };
 
@@ -101,12 +102,19 @@ public:
  * 同步client的 TCP连接复用
  * TCP connection的复用
 */
-class TinyrpcLongLiveClient {
 
+class LongLiveSupClient;
+// 多线程安全的类
+class TinyrpcLongLiveClient : public std::enable_shared_from_this<TinyrpcLongLiveClient> {
 public:
+  typedef std::shared_ptr<TinyrpcLongLiveClient> sptr;
+  typedef std::weak_ptr<TinyrpcLongLiveClient> wptr;
+
+  friend class LongLiveSupClient;
 
   TinyrpcLongLiveClient(int maxFreeConns = 2, \
-      ProtocalType type = tinyrpc::ProtocalType::TinyPb_Protocal) {
+      ProtocalType type = ProtocalType::TinyPb_Protocal, \
+      int timeout=5000) : timeout_(timeout) {
 
     clientGroups_ = std::make_shared<RpcClientGroups> (maxFreeConns, type);
   }
@@ -119,92 +127,68 @@ public:
   template <typename T, 
     typename=std::enable_if_t<std::is_same_v<IPAddress, T>>>
   // requires (std::is_same_v<IPAddress, T>)
-  tinyrpc::NetAddress::sptr addRpcClientAddr(std::string ip, uint16_t port) {
+  NetAddress::sptr addRpcClientAddr(std::string ip, uint16_t port) {
     return (std::make_shared<T> (ip, port));
   }
 
   template <typename T, 
     typename=std::enable_if_t<std::is_same_v<IPAddress, T>>>
-  tinyrpc::NetAddress::sptr addRpcClientAddr(std::string addr) {
+  NetAddress::sptr addRpcClientAddr(std::string addr) {
     return (std::make_shared<T> (addr));
   }
 
   template <typename T, 
     typename=std::enable_if_t<std::is_same_v<IPAddress, T>>>
-  tinyrpc::NetAddress::sptr addRpcClientAddr(uint16_t port) {
+  NetAddress::sptr addRpcClientAddr(uint16_t port) {
     return (std::make_shared<T> (port));
   }
 
   template <typename T, 
     typename=std::enable_if_t<std::is_same_v<IPAddress, T>>>
-  tinyrpc::NetAddress::sptr addRpcClientAddr(sockaddr_in addr) {
+  NetAddress::sptr addRpcClientAddr(sockaddr_in addr) {
     return (std::make_shared<T> (addr));
   }
 
   template <typename T, 
     typename=std::enable_if_t<std::is_same_v<UnixDomainAddress, T>>>
-  tinyrpc::NetAddress::sptr addRpcClientAddr(std::string path, UnixDomainAddressFlag dummy) {
+  NetAddress::sptr addRpcClientAddr(std::string path, UnixDomainAddressFlag dummy) {
     return (std::make_shared<T> (path));
   }
 
   template <typename T, 
     typename=std::enable_if_t<std::is_same_v<UnixDomainAddress, T>>>
-	tinyrpc::NetAddress::sptr addRpcClientAddr(sockaddr_un addr, UnixDomainAddressFlag dummy) {
+	NetAddress::sptr addRpcClientAddr(sockaddr_un addr, UnixDomainAddressFlag dummy) {
     return (std::make_shared<T> (addr));
   }
 
 
-  void setTimeOut(int timeout) {
-    timeout_ =  timeout;
+public:
+  std::unique_ptr<LongLiveSupClient> newLongLiveSupClient(NetAddress::sptr addr) {
+    return std::make_unique<LongLiveSupClient> (shared_from_this(), addr);
   }
 
 
-public:
+private:
   
   // 一个不立即释放的rpcClient
   // getByID更加节省开销
-  long long getID(tinyrpc::NetAddress::sptr addr) {
-    long long id = 0;
-    {
-      Mutex::Lock lock(idMutex_);
-      ID_++;
-      id = ID_;
-    }
-
+  RpcClient::wptr getRpcClient(NetAddress::sptr addr) {
+    auto client = std::make_shared<RpcClient> (addr, clientGroups_);
     {
       Mutex::Lock lock(clientsMutex_);
-      clients_[id] = std::make_shared<RpcClient> (addr, clientGroups_);
+      // 这里桶std::set不认为是线程安全函数
+      clients_.insert(client);
     }
-
-    return id;
+    return client;
   }
 
-  void returnID(long long id) {
-    Mutex::Lock lock(clientsMutex_);
-    auto it = clients_.find(id);
-    if (it != clients_.end()) {
-      clients_.erase(it);
-    }
-  }
-
-template <typename S,
-    typename=std::enable_if_t<std::is_base_of_v<google::protobuf::Service, S>>>
-  int CallByID(const std::string &method_name, \
-      google::protobuf::Message *request, \
-      google::protobuf::Message *response, \
-      long long id) {
-
-    RpcClient::sptr client;
-    {
+  void returnRpcClient(RpcClient::wptr client) {
+    RpcClient::sptr sClient = client.lock();
+    if (sClient != nullptr) [[likely]] {
+      // 这里桶std::set不认为是线程安全函数
       Mutex::Lock lock(clientsMutex_);
-      auto it = clients_.find(id);
-      if (it == clients_.end()) {
-        return tinyrpc::ERROR_RPCCLIENT_ID;
-      }
-      client = it->second;
+      clients_.erase(sClient);
     }
-
-    return CallByRpcClient<S> (method_name, request, response, client);
   }
 
 public:
@@ -214,29 +198,11 @@ public:
   int CallByAddr(const std::string &method_name, \
       google::protobuf::Message *request, \
       google::protobuf::Message *response, \
-      tinyrpc::NetAddress::sptr addr) {
-
+      NetAddress::sptr addr) {
 
     return CallByRpcClient<S> (method_name, request, response, \
         std::make_shared<RpcClient> (addr, clientGroups_));
-
-    // tinyrpc::TinyPbRpcClientChannel channel(std::make_shared<RpcClient> (addr, clientGroups_));
-    // auto stub = std::make_unique<details::has_Stub_t<S>> (&channel);
-
-    // TinyPbRpcController rpc_controller;
-    // rpc_controller.SetTimeout(timeout_);
-
-    // const google::protobuf::MethodDescriptor* method = 
-      // S::descriptor()->FindMethodByName(method_name);
-    
-    // std::function<void()> reply_package_func = [](){};
-    // TinyPbRpcClosure closure(reply_package_func);
-
-    // stub->CallMethod(method, &rpc_controller, request, response, &closure);
-    // return rpc_controller.ErrorCode();
   }
-
-
 
  private:
 
@@ -247,7 +213,7 @@ public:
       google::protobuf::Message *response, \
       RpcClient::sptr client) {
 
-    tinyrpc::TinyPbRpcClientChannel channel(client);
+    TinyPbRpcClientChannel channel(client);
     auto stub = std::make_unique<details::has_Stub_t<S>> (&channel);
 
     TinyPbRpcController rpc_controller;
@@ -268,14 +234,67 @@ public:
 
   int timeout_ = 5000;
 
-  Mutex idMutex_;
-  long long int ID_ = 0;
-
   Mutex clientsMutex_;
-  std::map<long long, RpcClient::sptr> clients_;
+  std::set<RpcClient::sptr> clients_;
 
   RpcClientGroups::sptr clientGroups_;
 };
+
+TinyrpcLongLiveClient::sptr newTinyrpcLongLiveClient(int maxFreeConns = 2, \
+      ProtocalType type = ProtocalType::TinyPb_Protocal, \
+      int timeout=5000) {
+  return std::make_shared<TinyrpcLongLiveClient> (maxFreeConns, type, timeout);
+}
+
+
+// 不是多线程安全的类
+class LongLiveSupClient {
+public:
+  typedef std::shared_ptr<LongLiveSupClient> sptr;
+  typedef std::weak_ptr<LongLiveSupClient> wptr;
+
+public:
+  LongLiveSupClient(std::shared_ptr<TinyrpcLongLiveClient> longLiveClient, \
+      NetAddress::sptr addr) \
+      : clientGroups_(longLiveClient) {
+
+    client_ = longLiveClient->getRpcClient(addr);
+  }
+
+  ~LongLiveSupClient() {
+    std::shared_ptr<TinyrpcLongLiveClient> clientGroups = clientGroups_.lock();
+    if (clientGroups != nullptr) {
+      clientGroups->returnRpcClient(client_);
+    }
+  }
+
+  LongLiveSupClient(const LongLiveSupClient&) = delete;
+  LongLiveSupClient(LongLiveSupClient&&) = delete;
+  LongLiveSupClient& operator=(const LongLiveSupClient&) = delete;
+  LongLiveSupClient& operator=(LongLiveSupClient&&) = delete;
+
+
+  template <typename S,
+    typename=std::enable_if_t<std::is_base_of_v<google::protobuf::Service, S>>>
+  int Call(const std::string &method_name, \
+      google::protobuf::Message *request, \
+      google::protobuf::Message *response) {
+    
+    auto clientGroups = clientGroups_.lock();
+    auto client = client_.lock();
+    assert(clientGroups != nullptr && client != nullptr);
+    return clientGroups->CallByRpcClient<S> (method_name, \
+      request, response, client);
+  }
+
+private:
+
+  std::weak_ptr<TinyrpcLongLiveClient> clientGroups_;
+  RpcClient::wptr client_;
+
+};
+
+
 
 }; // namespace tinyrpc
 

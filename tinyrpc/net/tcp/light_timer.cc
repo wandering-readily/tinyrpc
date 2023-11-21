@@ -49,11 +49,11 @@ bool LightTimer::registerInLoop() {
 LightTimer::~LightTimer() {
   cancelCB();
   LightTimerPool::sptr timerPool = weakLightTimerPool_.lock();
-  if (timerPool) {
+  if (timerPool) [[likely]] {
     timerPool->delLightTimer(fd_);
-  }
-  if (added) {
-    sem_wait(getwaitDelInLoopSem());
+    if (added) {
+      sem_wait(getwaitDelInLoopSem());
+    }
   }
 
   sem_destroy(getwaitAddInLoopSem());
