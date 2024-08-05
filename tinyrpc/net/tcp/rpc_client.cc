@@ -47,8 +47,12 @@ void RpcClient::resetFd() {
   // client connection确定不开启reactor
   // 而tcp_connection中包含了server 的同步和异步connection，因此开启reactor相关设置
   // this->conn_->m_fd_event->unregisterFromReactor();
+  // 测试是否复用了服务器fd
+  // std::cout << "close old fd " <<  this->conn_->getFd();
   close(this->conn_->getFd());
   this->conn_->m_fd = createNonblockingOrDie(this->conn_->m_peer_addr->getFamily());
+  // 测试是否复用了服务器fd
+  // std::cout << "open new fd " << this->conn_->m_fd << "\n";
 }
 
 // 代替了部分TcpConnection功能
@@ -218,8 +222,7 @@ bool RpcClient::updateTcpState() {
 
 
 
-RpcClientGroups::RpcClientGroups(int maxFreeConns, ProtocalType type) \
-    : maxFreeConns_(maxFreeConns) {
+RpcClientGroups::RpcClientGroups(int maxFreeConns, ProtocalType type) {
   
   local_addr_ = std::make_shared<tinyrpc::IPAddress>("127.0.0.1", 0);
   
@@ -298,8 +301,8 @@ TcpConnection::sptr RpcClientGroups::getConnection(NetAddress::sptr peer_addr) {
 
     int family = peer_addr->getFamily();
     // m_fd = socket(AF_INET, SOCK_STREAM, 0);
-    // printf("make new connection\n");
     int fd = createNonblockingOrDie(family);
+    // printf("make new connection %d\n", fd);
     // 这里不应该存在，TCP socket不应该关了又开
     // client应该重新启动addr
     // setReuseAddr(fd, true);
@@ -341,11 +344,9 @@ void RpcClientGroups::delConnection(TcpConnection::sptr conn) {
     {
       Mutex::Lock lock(mutex);
       std::list<TcpConnection::sptr> &list = freeConns_[conn_flag]->getConns();
-      size_t deleteSize = list.size() / maxFreeConns_ + 1;
-      while(deleteSize > 1) {
+      while(!list.empty() && list.front()->getState() != Connected) {
         close(list.front()->getFd());
         list.pop_front();
-        deleteSize--;
       }
       list.push_back(conn);
     }

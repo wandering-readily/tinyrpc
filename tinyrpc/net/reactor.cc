@@ -418,7 +418,7 @@ void Reactor::loop() {
                   // 只在这里一个一个完成任务，自然不关心本地协程任务和协程池任务
 
                   // 实验功能1: 关闭first_coroutine=Null这步
-                  // 为什么要有这一步呢
+                  // 在上一步就会Resume去执行accept函数，会一次性接收所有堵塞的accept，firstCoroutine不用去执行了
                   if (first_coroutine) {
                     first_coroutine = NULL;
                   }

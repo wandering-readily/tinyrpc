@@ -20,6 +20,37 @@
 
 namespace tinyrpc {
 
+simpleTimeNotifier_LightTimerPool::simpleTimeNotifier_LightTimerPool() {
+  lightTimerPool_ = std::make_shared<LightTimerPool> ();
+}
+
+void simpleTimeNotifier_LightTimerPool::registerTimer(int m_max_timeout, std::function<void()> cb) {
+  auto timer = std::make_shared<LightTimer> (m_max_timeout, cb, this->lightTimerPool_);
+  timer->registerInLoop();
+}
+
+void simpleTimeNotifier_LightTimerPool::count() {}
+
+
+
+
+void simpleTimeNotifier_retryLimit::registerTimer(int max_timeout, std::function<void()> cb) {
+  timer_cb = cb;
+}
+
+void simpleTimeNotifier_retryLimit::count() {
+  retries_++;
+  if (retries_ == retryLimits_) {
+    timer_cb();
+    return;
+  }
+  usleep(basic_time_ * retries_ * retries_);
+}
+
+
+
+
+
 TcpClient::TcpClient(NetAddress::sptr addr, ProtocalType type) \
     : m_peer_addr(addr), fdEventPool_(std::make_shared<FdEventContainer>(1000)) {
 

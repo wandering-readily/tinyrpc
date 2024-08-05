@@ -128,8 +128,6 @@ class RpcClientGroups {
 
  private:
   
-  int maxFreeConns_ = 2;
- 
   std::shared_ptr<tinyrpc::NetAddress> local_addr_;
  
   bool isServerConn_ {false};

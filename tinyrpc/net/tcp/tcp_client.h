@@ -14,6 +14,42 @@ namespace tinyrpc {
 
 class LightTimerPool;
 
+class simpleTimeNotifier {
+ public:
+  virtual void registerTimer(int, std::function<void()>) = 0;
+  virtual void count() = 0;
+  virtual ~simpleTimeNotifier() = default;
+};
+
+
+class simpleTimeNotifier_LightTimerPool : public simpleTimeNotifier {
+ public:
+  simpleTimeNotifier_LightTimerPool();
+
+  void registerTimer(int, std::function<void()>) override;
+  void count() override;
+
+ private:
+  std::shared_ptr<LightTimerPool> lightTimerPool_;
+};
+
+
+class simpleTimeNotifier_retryLimit : public simpleTimeNotifier {
+ public:
+  simpleTimeNotifier_retryLimit(int retryLimits = 64) : retryLimits_(retryLimits) {}
+
+  void registerTimer(int, std::function<void()>) override;
+  void count() override;
+
+
+ private:
+  int basic_time_ = 1000;
+  int retryLimits_ = 64;
+  int retries_ = 0;
+  std::function<void()> timer_cb;
+};
+
+
 //
 // You should use TcpClient in a coroutine(not main coroutine)
 //

@@ -264,6 +264,8 @@ void TcpServer::MainAcceptCorFunc() {
 		// 重点阅读DEBUG
 		// 添加TcpConnection
 		TcpConnection::sptr conn = addClient(io_thread, fd);
+		// 测试是否复用了服务器fd
+		std::cout << "server new fd " << fd << "\n";
 		// !!!
 		// 重点阅读DEBUG
 		// 服务端TcpConnection循环协程钩子设置
