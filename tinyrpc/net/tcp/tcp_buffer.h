@@ -41,7 +41,7 @@ class TcpBuffer {
 
   // const char* getBuffer();
 
-  std::vector<char> getBufferVector();
+  std::vector<char> const &getBufferVector();
 
   std::string getBufferString();
 

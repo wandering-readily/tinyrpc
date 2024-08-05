@@ -163,7 +163,7 @@ std::string TcpBuffer::getBufferString() {
 // !!!
 // ???
 // 注意这里会拷贝m_buffer内容
-std::vector<char> TcpBuffer::getBufferVector() {
+std::vector<char> const &TcpBuffer::getBufferVector() {
   return m_buffer;
 }
 

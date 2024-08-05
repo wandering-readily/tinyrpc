@@ -75,6 +75,7 @@ void FdEvent::delListenEvents(IOEvent event) {
 
 }
 
+// 处理事件时，要提前设置好FdEvent的reactor
 // 添加监听事件后，变化更新到reactor
 void FdEvent::updateToReactor() {
 

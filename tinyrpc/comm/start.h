@@ -71,7 +71,8 @@ public:
 private:
   void InitServiceConfig();
   void InitConfig();
-  void InitLogger(std::shared_ptr<Logger> &);
+  // void InitLogger(std::shared_ptr<Logger> &);
+  void InitLogger(Logger::sptr &);
   void InitServer();
 
 

@@ -147,17 +147,19 @@ void Config::readDBConfig(TiXmlElement* node) {
 
 
 void Config::readConf() {
+  // 1. 读取root
   TiXmlElement* root = m_xml_file->RootElement();
 
+
+  // 2. 读取log
   TiXmlElement* log_node = 
       root->FirstChildElement("log");
   printNodeErrorIfExist(log_node, "log");
+  // 专门读取log函数
   readLogConfig(log_node);
 
-  TiXmlElement* time_wheel_node = 
-      root->FirstChildElement("time_wheel");
-  printNodeErrorIfExist(time_wheel_node, "time_wheel");
 
+  // 3. 读取coroutine
   TiXmlElement* coroutine_node = 
       root->FirstChildElement("coroutine");
   printNodeErrorIfExist(coroutine_node, "coroutine");
@@ -174,11 +176,15 @@ void Config::readConf() {
   m_cor_stack_size = 1024 * cor_stack_size;
   m_cor_pool_size = std::atoi(coroutine_pool_size_node->GetText());
 
+
+  // 4. 读取msg_req_len
   TiXmlElement *msg_req_len_node = 
       root->FirstChildElement("msg_req_len");
   printNodeAndGetTextErrorIfExist(msg_req_len_node, "msg_req_len");
   m_msg_req_len = std::atoi(msg_req_len_node->GetText());
 
+
+  // 5. 读取max_connect_timeout
   TiXmlElement *max_connect_timeout_node = 
       root->FirstChildElement("max_connect_timeout");
   printNodeAndGetTextErrorIfExist(max_connect_timeout_node, "max_connect_timeout");
@@ -186,11 +192,17 @@ void Config::readConf() {
   m_max_connect_timeout = max_connect_timeout * 1000;
 
 
+  // 5. 读取iothread_num
   TiXmlElement *iothread_num_node = 
       root->FirstChildElement("iothread_num");
   printNodeAndGetTextErrorIfExist(iothread_num_node, "iothread_num");
   m_iothread_num = std::atoi(iothread_num_node->GetText());
 
+
+  // 7. 读取timeWheel
+  TiXmlElement* time_wheel_node = 
+      root->FirstChildElement("time_wheel");
+  printNodeErrorIfExist(time_wheel_node, "time_wheel");
 
   TiXmlElement *bucket_num_node = 
       time_wheel_node->FirstChildElement("bucket_num");
@@ -201,6 +213,8 @@ void Config::readConf() {
   m_timewheel_bucket_num = std::atoi(bucket_num_node->GetText());
   m_timewheel_inteval = std::atoi(inteval_node->GetText());
 
+
+  // 8. 读取server
   TiXmlElement *net_node = 
       root->FirstChildElement("server");
   printNodeErrorIfExist(net_node, "server");
@@ -208,30 +222,29 @@ void Config::readConf() {
   if (!net_node->FirstChildElement("ip") || 
       !net_node->FirstChildElement("port") || 
       !net_node->FirstChildElement("protocal")) {
+
     printf("start tinyrpc server error! read config file [%s] error, "
             "cannot read [server.ip] or [server.port] or "
             "[server.protocal] xml node\n",
             m_file_path.c_str());
     exit(0);
   }
-  std::string ip = std::string(
-          net_node->FirstChildElement("ip")->GetText());
+  std::string ip = std::string(net_node->FirstChildElement("ip")->GetText());
   if (ip.empty()) {
     ip = "0.0.0.0";
   }
-  int port = std::atoi(
-        net_node->FirstChildElement("port")->GetText());
+  int port = std::atoi(net_node->FirstChildElement("port")->GetText());
   if (port == 0) {
     printf("start tinyrpc server error! read config file [%s] error, "
             "read [server.port] = 0\n", 
             m_file_path.c_str());
     exit(0);
   }
-  protocalName = std::string(
-        net_node->FirstChildElement("protocal")->GetText());
-  protocal = details::ParseProtocalType(protocalName);
 
+  protocalName = std::string(net_node->FirstChildElement("protocal")->GetText());
+  protocal = details::ParseProtocalType(protocalName);
   addr = std::make_shared<tinyrpc::IPAddress>(ip, port);
+
 
 
   char buff[512];
@@ -251,15 +264,12 @@ void Config::readConf() {
                 m_iothread_num, m_timewheel_bucket_num, 
                     m_timewheel_inteval, ip.c_str(), 
                     port, protocalName.c_str());
-
   std::string s(buff);
 
   TiXmlElement* database_node = root->FirstChildElement("database");
-
   if (database_node) {
     readDBConfig(database_node);
   }
-
 }
 
 Config::~Config() {
@@ -270,9 +280,6 @@ Config::~Config() {
 }
 
 
-TiXmlElement* Config::getXmlNode(const std::string& name) {
-  return m_xml_file->RootElement()->FirstChildElement(name.c_str());
-}
 
 void Config::printNodeAndGetTextErrorIfExist(TiXmlElement *pNode, const char *pattern) {
   if(!pNode || !pNode->GetText()) {
@@ -291,4 +298,4 @@ void Config::printNodeErrorIfExist(TiXmlElement *pNode, const char *pattern) {
 }
 
 
-}
+} // namespace tinyrpc

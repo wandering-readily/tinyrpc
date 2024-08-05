@@ -25,10 +25,13 @@ namespace tinyrpc {
 
 TinyPbRpcAsyncChannel::TinyPbRpcAsyncChannel(NetAddress::sptr addr) {
   m_rpc_channel = std::make_shared<TinyPbRpcChannel>(addr);
+  // m_current_iothread设置为当前IO线程
   m_current_iothread = IOThread::GetCurrentIOThread();
+  // m_current_cor先设置当前mainCoroutine
   m_current_cor = Coroutine::GetCurrentCoroutine();
 
-  if (Coroutine::IsMainCoroutine()) {
+  if (Coroutine::IsMainCoroutine() || !m_current_iothread) {
+    // 如果是mainCoroutine rpc call() 或者当前为进程的主线程，那么就用sem通知
     mainCorSet = true;
     int rt = sem_init(getMainCorSemaphorePtr(), 0, 0);
     assert(rt==0);
@@ -102,6 +105,8 @@ void TinyPbRpcAsyncChannel::CallMethod(const google::protobuf::MethodDescriptor*
     RpcDebugLog << "excute rpc call method by this thread finish";
 
     // 2. 回调任务
+    // 本质上是ClosurePtr()任务，finished设置任务，mainCorourine恢复任务
+    // 这写任务必须
     auto call_back = [s_ptr]() mutable {
       RpcDebugLog << "async excute rpc call method back old thread";
       // callback function excute in origin thread
@@ -121,13 +126,16 @@ void TinyPbRpcAsyncChannel::CallMethod(const google::protobuf::MethodDescriptor*
     };
 
     // 本IO线程curIOThread承担还原callback任务
-    // 如果是client，在我们的设置中进程的主线程没有IOThread*, 
-    // 因此s_ptr->getIOThread()将会是nullptr
-    // 这样会引发错误
-    // 所以采用sem_t通知
-    if (s_ptr->isMainCorSet()) {
+    if (s_ptr->isWaitedOnThread_semNotify()) {
+      // 如果是client，在我们的设置中进程的主线程没有IOThread*, 
+      // 因此s_ptr->getIOThread()将会是nullptr
+      // 这样会引发错误
+      // 所以采用sem_t通知
       sem_post(s_ptr->getMainCorSemaphorePtr());
     } else {
+
+      // 本IO线程的mainCoroutine执行callBack的任务
+      // 不能在执行协程m_pending_cor中执行该任务
       s_ptr->getIOThread()->getReactor()->addTask(call_back, true);
     }
     s_ptr.reset();
@@ -136,26 +144,26 @@ void TinyPbRpcAsyncChannel::CallMethod(const google::protobuf::MethodDescriptor*
   // 转换进去m_pending_cor 将作为cb放入任一线程(但是不能在本线程当中)
   // m_pending_cor = GetServer()->getIOThreadPool()->addCoroutineToRandomThread(cb, false);
 
+  // 自己选定线程异步执行该协程任务
   tinyrpc::CoroutinePool::sptr corPool = weakCorPool_.lock();
   assert(corPool != nullptr && "corPool had released");
   m_pending_cor = corPool->getCoroutineInstanse();
   m_pending_cor->setCallBack(cb);
   m_chosed_iothread->getReactor()->addCoroutine(m_pending_cor, true);
-
 }
 
 void TinyPbRpcAsyncChannel::wait() {
-  m_need_resume = true;
   if (m_is_finished) {
     return;
   }
-  if (isMainCorSet()) {
+  if (isWaitedOnThread_semNotify()) {
     sem_wait(getMainCorSemaphorePtr());
     if (getClosurePtr() != nullptr) {
       RpcDebugLog << "async excute rpc call method back old thread";
       getClosurePtr()->Run();
     }
   } else {
+    m_need_resume = true;
     Coroutine::Yield();
   }
   m_is_finished = true;

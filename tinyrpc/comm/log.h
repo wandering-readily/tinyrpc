@@ -19,12 +19,26 @@
 
 namespace tinyrpc {
 
-typedef void (*OutputFunc)(const char* msg, int len);
-typedef void (*FlushFunc)();
+/*
+ * 1. 定义log输出宏
+ * 下面是宏需要的函数和类型的提前声明
+ */
+
+
+// 1. 控制打不打印日志，这个在生产环境中有用
+// 编译期设置打不打印log
+// 编译期能够优化编译期false
+static constexpr const bool g_openLogger_flag = false;
+consteval const bool OpenLogger() {
+  return g_openLogger_flag;
+}
+
 
 class Logger;
-bool OpenLogger();
 std::shared_ptr<Logger> GetGRpcLogger();
+
+
+
 
 template<typename... Args>
 std::string formatString(const char* str, Args&&... args) {
@@ -48,7 +62,7 @@ std::string formatString(const char* str, Args&&... args) {
 // 输出至文件流
 // 默认stdout输出
 #define RpcDebugLogStream \
-if (tinyrpc::OpenLogger()) \
+if constexpr (tinyrpc::OpenLogger()) \
 	tinyrpc::LogTmp(tinyrpc::LogLevel::DEBUG, \
 		tinyrpc::LogEvent::sptr( \
 			new tinyrpc::LogEvent( \
@@ -58,7 +72,7 @@ if (tinyrpc::OpenLogger()) \
 	).getStringStream() \
 
 #define RpcInfoLogStream \
-if (tinyrpc::OpenLogger()) \
+if constexpr (tinyrpc::OpenLogger()) \
 	tinyrpc::LogTmp(tinyrpc::LogLevel::INFO, \
 		tinyrpc::LogEvent::sptr( \
 			new tinyrpc::LogEvent( \
@@ -68,7 +82,7 @@ if (tinyrpc::OpenLogger()) \
 	).getStringStream() \
 
 #define RpcWarnLogStream \
-if (tinyrpc::OpenLogger()) \
+if constexpr (tinyrpc::OpenLogger()) \
 	tinyrpc::LogTmp(tinyrpc::LogLevel::WARN, \
 		tinyrpc::LogEvent::sptr( \
 			new tinyrpc::LogEvent( \
@@ -78,7 +92,7 @@ if (tinyrpc::OpenLogger()) \
 	).getStringStream() \
 
 #define RpcErrorLogStream \
-if (tinyrpc::OpenLogger()) \
+if constexpr (tinyrpc::OpenLogger()) \
 	tinyrpc::LogTmp(tinyrpc::LogLevel::ERROR, \
 		tinyrpc::LogEvent::sptr( \
 			new tinyrpc::LogEvent( \
@@ -89,7 +103,7 @@ if (tinyrpc::OpenLogger()) \
 
 
 #define AppDebugLogStream \
-if (tinyrpc::OpenLogger()) \
+if constexpr (tinyrpc::OpenLogger()) \
 	tinyrpc::LogTmp(tinyrpc::LogLevel::DEBUG, \
 		tinyrpc::LogEvent::sptr( \
 			new tinyrpc::LogEvent( \
@@ -99,7 +113,7 @@ if (tinyrpc::OpenLogger()) \
 	).getStringStream() \
 
 #define AppInfoLogStream \
-if (tinyrpc::OpenLogger()) \
+if constexpr (tinyrpc::OpenLogger()) \
 	tinyrpc::LogTmp(tinyrpc::LogLevel::INFO, \
 		tinyrpc::LogEvent::sptr( \
 			new tinyrpc::LogEvent( \
@@ -109,7 +123,7 @@ if (tinyrpc::OpenLogger()) \
 	).getStringStream() \
 
 #define AppWarnLogStream \
-if (tinyrpc::OpenLogger()) \
+if constexpr (tinyrpc::OpenLogger()) \
 	tinyrpc::LogTmp(tinyrpc::LogLevel::WARN, \
 		tinyrpc::LogEvent::sptr( \
 			new tinyrpc::LogEvent( \
@@ -119,7 +133,7 @@ if (tinyrpc::OpenLogger()) \
 	).getStringStream()
 
 #define AppErrorLogStream \
-if (tinyrpc::OpenLogger()) \
+if constexpr (tinyrpc::OpenLogger()) \
 	tinyrpc::LogTmp(tinyrpc::LogLevel::ERROR, \
 		tinyrpc::LogEvent::sptr( \
 			new tinyrpc::LogEvent( \
@@ -132,7 +146,7 @@ if (tinyrpc::OpenLogger()) \
 
 // 输出到conf指定文件
 #define RpcDebugLog \
-  if (tinyrpc::OpenLogger()) \
+  if constexpr (tinyrpc::OpenLogger()) \
     tinyrpc::LogInGrpcLogger( \
 		tinyrpc::LogEvent::sptr( \
 			new tinyrpc::LogEvent( \
@@ -142,7 +156,7 @@ if (tinyrpc::OpenLogger()) \
 	).getStringStream()
 
 #define RpcInfoLog \
-  if (tinyrpc::OpenLogger()) \
+  if constexpr (tinyrpc::OpenLogger()) \
     tinyrpc::LogInGrpcLogger( \
 		tinyrpc::LogEvent::sptr( \
 			new tinyrpc::LogEvent( \
@@ -152,7 +166,7 @@ if (tinyrpc::OpenLogger()) \
 	).getStringStream() 
 
 #define RpcWarnLog \
-  if (tinyrpc::OpenLogger()) \
+  if constexpr (tinyrpc::OpenLogger()) \
     tinyrpc::LogInGrpcLogger( \
 		tinyrpc::LogEvent::sptr( \
 			new tinyrpc::LogEvent( \
@@ -170,7 +184,7 @@ if (tinyrpc::OpenLogger()) \
  */
 
 #define RpcErrorLog \
-  if (tinyrpc::OpenLogger()) \
+  if constexpr (tinyrpc::OpenLogger()) \
 	tinyrpc::LogInGrpcLogger( \
 		tinyrpc::LogEvent::sptr( \
 			new tinyrpc::LogEvent( \
@@ -185,7 +199,7 @@ if (tinyrpc::OpenLogger()) \
 // App类的输出改为文本，需要输入server
 // LogEvent类需要返回输出 + 额外输出
 #define AppDebugLog(str, ...) \
-  if (tinyrpc::OpenLogger()) { \
+  if constexpr (tinyrpc::OpenLogger()) { \
     tinyrpc::GetGRpcLogger()->pushAppLog( \
 		tinyrpc::LogEvent(tinyrpc::LogLevel::DEBUG, \
 			__FILE__, __LINE__, __func__, tinyrpc::LogType::APP_LOG).toString() \
@@ -195,7 +209,7 @@ if (tinyrpc::OpenLogger()) \
   }\
 
 #define AppInfoLog(str, ...) \
-  if (tinyrpc::OpenLogger()) { \
+  if constexpr (tinyrpc::OpenLogger()) { \
     tinyrpc::GetGRpcLogger()->pushAppLog( \
 		tinyrpc::LogEvent(tinyrpc::LogLevel::INFO, \
 			__FILE__, __LINE__, __func__, tinyrpc::LogType::APP_LOG).toString() \
@@ -205,7 +219,7 @@ if (tinyrpc::OpenLogger()) \
   }\
 
 #define AppWarnLog(str, ...) \
-  if (tinyrpc::OpenLogger()) { \
+  if constexpr (tinyrpc::OpenLogger()) { \
     tinyrpc::GetGRpcLogger()->pushAppLog( \
 		tinyrpc::LogEvent(tinyrpc::LogLevel::WARN, \
 			__FILE__, __LINE__, __func__, tinyrpc::LogType::APP_LOG).toString() \
@@ -215,7 +229,7 @@ if (tinyrpc::OpenLogger()) \
   }\
 
 #define AppErrorLog(str, ...) \
-  if (tinyrpc::OpenLogger()) { \
+  if constexpr (tinyrpc::OpenLogger()) { \
     tinyrpc::GetGRpcLogger()->pushAppLog( \
 		tinyrpc::LogEvent(tinyrpc::LogLevel::ERROR, \
 			__FILE__, __LINE__, __func__, tinyrpc::LogType::APP_LOG).toString() \
@@ -241,9 +255,13 @@ if (tinyrpc::OpenLogger()) \
 
 
 
+
 /* 
  * 2. 定义输出内容
  */
+
+typedef void (*OutputFunc)(const char* msg, int len);
+typedef void (*FlushFunc)();
 
 // 输出Logtype Loglevel的util函数
 enum class LogType {
@@ -252,11 +270,16 @@ enum class LogType {
 };
 
 pid_t gettid();
-
 LogLevel stringToLevel(const std::string& str);
 std::string levelToString(LogLevel level);
 
-// 返回是否设置了gRpcLogger
+
+/*
+ * 3. logger打印
+ * LogEvent负责定义输出内容及格式
+ * LogTmp负责输出stdout
+ * LogInGrpcLogger负责输出gRpcLogger, {AsynLogger, Logger}是负责gRpcLogger的异步刷新，Logger负责定时刷新
+ */
 class LogEvent {
 
  public:
@@ -269,6 +292,8 @@ class LogEvent {
 	
 	void log();
 
+	// m_ss的引用
+	// 方便宏输入内容
 	std::stringstream& getStringStream();
 
 	std::string toString();
@@ -331,6 +356,12 @@ class LogInGrpcLogger {
 };
 
 
+
+/*
+ * 4. 定义异步logger
+ * AsyncLogger负责日志线程池内容输出到日志文件
+ * Logger负责输出到前端输入
+ */
 class AsyncLogger {
  public:
   typedef std::shared_ptr<AsyncLogger> sptr;
@@ -381,6 +412,7 @@ class Logger {
 	void init(const char* file_name, const char* file_path, 
 			int max_size, int sync_inteval);
 
+	// 对外提供输入格式
 	void pushRpcLog(const std::string& log_msg);
 	void pushAppLog(const std::string& log_msg);
 	void loopFunc();

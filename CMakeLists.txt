@@ -7,7 +7,7 @@ SET(CMAKE_INSTALL_PREFIX ${PROJECT_SOURCE_DIR})
 enable_language(ASM)
 
 # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O0 -std=c++11 -Wall -Wno-deprecated -Wno-unused-but-set-variable")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O0 -std=c++17 -Wall -Wno-deprecated -Wno-unused-but-set-variable")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O0 -std=c++20 -Wall -Wno-deprecated -Wno-unused-but-set-variable")
 
 set(PATH_LIB lib)
 set(PATH_BIN bin)

@@ -27,6 +27,8 @@ void HttpCodeC::encode(TcpBuffer* buf, AbstractData* data) {
   response->encode_succ = false;
 
   std::stringstream ss;
+  // 因为response->m_response_header.toHttpString()输出自带一个'\r\n'
+  // 所以只需要额外添加一个'\r\n'
   ss << response->m_response_version << " " << response->m_response_code << " "
     << response->m_response_info << "\r\n" << response->m_response_header.toHttpString()
     << "\r\n" << response->m_response_body;

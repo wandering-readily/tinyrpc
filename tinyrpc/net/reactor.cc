@@ -143,7 +143,7 @@ void Reactor::wakeup() {
   }
 
 	uint64_t tmp = 1;
-	uint64_t* p = &tmp; 
+	uint64_t *p = &tmp; 
 	if(g_sys_write_fun(m_wake_fd, p, 8) != 8) {
 		RpcErrorLog << "write wakeupfd[" << m_wake_fd <<"] error";
 	}
@@ -304,6 +304,7 @@ void Reactor::loop() {
     {
     Mutex::Lock lock(m_mutex);
     tmp_tasks.swap(m_pending_tasks);
+    
     }
 
     // 执行任务
@@ -404,7 +405,7 @@ void Reactor::loop() {
                   //    取出事件切换到协程内容执行，并等待返回
 
                   CoroutineTaskQueue::sptr corTaskQueue = \
-                  IOThread::GetCurrentIOThread()->getweakCorTaskQueue().lock();
+                    IOThread::GetCurrentIOThread()->getweakCorTaskQueue().lock();
                   assert(corTaskQueue != nullptr && "corTaskQueue had released");
                   corTaskQueue->push(ptr);
                 } else {
@@ -415,6 +416,9 @@ void Reactor::loop() {
                   tinyrpc::Coroutine::Resume(ptr->getCoroutine());
                   // mainReactor所在的main线程，持有main_coroutine
                   // 只在这里一个一个完成任务，自然不关心本地协程任务和协程池任务
+
+                  // 实验功能1: 关闭first_coroutine=Null这步
+                  // 为什么要有这一步呢
                   if (first_coroutine) {
                     first_coroutine = NULL;
                   }

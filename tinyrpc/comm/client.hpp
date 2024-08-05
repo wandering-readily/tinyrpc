@@ -163,6 +163,7 @@ public:
 
 
 public:
+  // 返回一个辅助类，直接调用call()函数rpc调用
   std::unique_ptr<LongLiveSupClient> newLongLiveSupClient(NetAddress::sptr addr) {
     return std::make_unique<LongLiveSupClient> (shared_from_this(), addr);
   }
@@ -193,6 +194,7 @@ private:
 
 public:
   
+  // 不使用辅助类，直接远程调用
   template <typename S,
     typename=std::enable_if_t<std::is_base_of_v<google::protobuf::Service, S>>>
   int CallByAddr(const std::string &method_name, \
@@ -241,8 +243,8 @@ public:
 };
 
 TinyrpcLongLiveClient::sptr newTinyrpcLongLiveClient(int maxFreeConns = 2, \
-      ProtocalType type = ProtocalType::TinyPb_Protocal, \
-      int timeout=5000) {
+    ProtocalType type = ProtocalType::TinyPb_Protocal, \
+    int timeout=5000) {
   return std::make_shared<TinyrpcLongLiveClient> (maxFreeConns, type, timeout);
 }
 
@@ -291,7 +293,6 @@ private:
 
   std::weak_ptr<TinyrpcLongLiveClient> clientGroups_;
   RpcClient::wptr client_;
-
 };
 
 

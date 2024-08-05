@@ -86,6 +86,8 @@ class FdEvent : public std::enable_shared_from_this<FdEvent> {
   
   int m_listen_events {0};
 
+  // Reactor的生命周期要比FdEvent长，因此不必关心reator *的释放问题
+  // 但是也可能不绑定任何reactor *
   Reactor* m_reactor {nullptr};
 
   Coroutine* m_coroutine {nullptr};

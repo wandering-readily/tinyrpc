@@ -39,18 +39,18 @@ void SetHook(bool);
 
 }
 
-extern "C" {
+// extern "C" {
 
-int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen);
+// int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen);
 
-ssize_t read(int fd, void *buf, size_t count);
+// ssize_t read(int fd, void *buf, size_t count);
 
-ssize_t write(int fd, const void *buf, size_t count);
+// ssize_t write(int fd, const void *buf, size_t count);
 
-int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
+// int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
 
-unsigned int sleep(unsigned int seconds);
+// unsigned int sleep(unsigned int seconds);
 
-}
+// }
 
 #endif

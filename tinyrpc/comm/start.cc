@@ -34,6 +34,7 @@ void TinyrpcServer::InitServiceConfig() {
 
   InitLogger(gRpcLogger);
   InitServer();
+  // start()函数会往TcpServer的当前主线程下的reactor注册定时任务loopFunc
   gRpcLogger->start();
 }
 

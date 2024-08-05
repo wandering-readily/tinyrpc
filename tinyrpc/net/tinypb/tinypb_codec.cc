@@ -160,7 +160,7 @@ void TinyPbCodeC::decode(TcpBuffer* buf, AbstractData* data) {
     return;
   }
 
-  std::vector<char> tmp = buf->getBufferVector();
+  std::vector<char> const &tmp = buf->getBufferVector();
   // int total_size = buf->readAble();
   int start_index = buf->readIndex();
   int end_index = -1;
@@ -199,8 +199,6 @@ void TinyPbCodeC::decode(TcpBuffer* buf, AbstractData* data) {
     RpcDebugLog << "not parse full package, return";
     return;
   }
-
-  buf->recycleRead(end_index + 1 - start_index);
 
   RpcDebugLog << "m_read_buffer size=" << buf->getBufferVector().size() << "rd=" << buf->readIndex() << "wd=" << buf->writeIndex();
 
@@ -299,13 +297,16 @@ void TinyPbCodeC::decode(TcpBuffer* buf, AbstractData* data) {
   // RpcDebugLog << "pb_data_index = " << pb_data_index << ", pb_data.length = " << pb_data_len;
 
   std::string pb_data_str(&tmp[pb_data_index], pb_data_len);
-  pb_struct->pb_data = pb_data_str;
+  pb_struct->pb_data = std::move(pb_data_str);
 
   // RpcDebugLog << "decode succ,  pk_len = " << pk_len << ", service_name = " << pb_struct->service_full_name; 
 
   pb_struct->decode_succ = true;
   data = pb_struct;
 
+  // end_index指向单个字节PB_END
+  // 因此需要移动end_index+1-start_index个位置
+  buf->recycleRead(end_index + 1 - start_index);
 }
 
 

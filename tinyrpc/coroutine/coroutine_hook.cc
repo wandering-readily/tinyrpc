@@ -282,7 +282,11 @@ int connect_hook(tinyrpc::FdEvent::sptr fd_event, const struct sockaddr *addr, s
   } else if (n < 0) {
 	switch (savedErrno) {
 	case EINPROGRESS:
+		{
+		// 已经连接成功
+		RpcDebugLog << "errno == EINPROGRESS";
 		return savedErrno;
+		}
 
 	case EINTR:
 	 	break;
@@ -292,8 +296,6 @@ int connect_hook(tinyrpc::FdEvent::sptr fd_event, const struct sockaddr *addr, s
 		locateErrorExit
 	}
   }
-
-	RpcDebugLog << "errno == EINPROGRESS";
 
   toEpoll(fd_event, tinyrpc::IOEvent::WRITE);
 

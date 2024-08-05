@@ -28,3 +28,5 @@
 > - 增加注册服务中心，转发节点（HTTP实现）仿照https://github.com/wandering-readily/7days-golang.git 的gee-cache, gee-rpc设计
 
 > - 增加一个XClient, 复用TCP连接，复用配置中心提供的地址
+
+> - 添加协程循环对外开放机制

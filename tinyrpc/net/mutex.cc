@@ -34,6 +34,8 @@ void CoroutineMutex::lock() {
   std::size_t corsSize;
   {
   Mutex::Lock lock(m_mutex);
+  // 如果全局协程锁没有锁，那么就直接执行
+  // 如果锁了的话，那么当前协程就要挂起
   if (!m_lock) {
     flag = false;
     m_lock = true;
@@ -59,11 +61,13 @@ void CoroutineMutex::unlock() {
     return;
   }
 
-  // 如果加过锁，那么代表可能有协程在等待, 直接获取
   Coroutine* cor = nullptr;
   {
   Mutex::Lock lock(m_mutex);
+  // 如果协程锁没有加过锁，那么当前可能是重复调用unlock()，什么也不做
   if (m_lock) {
+    // 如果加过锁，代表正确解锁
+    // 那些协程在等待队列中，唤醒第一个协程
     m_lock = false;
     if (m_sleep_cors.empty()) {
       return;
@@ -74,6 +78,7 @@ void CoroutineMutex::unlock() {
   }
   }
 
+  // 直接将当前任务放入线程执行队列
   if (cor) {
     // wakeup the first cor in sleep queue
     RpcDebugLog << "coroutine unlock, now to resume coroutine[" << cor->getCorId() << "]";

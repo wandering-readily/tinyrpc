@@ -22,6 +22,7 @@ void HttpDispacther::dispatch(AbstractData* data, TcpConnection* conn) {
   // 转发处理方式
   std::string url_path = resquest->m_request_path;
   if (!url_path.empty()) {
+    // url_path是service处理方法字段
     auto it = m_servlets.find(url_path);
     if (it == m_servlets.end()) {
       RpcErrorLog << "404, url path{ " << url_path << "}, msgno=" << Coroutine::GetCurrentCoroutine()->getRunTime()->m_msg_no;

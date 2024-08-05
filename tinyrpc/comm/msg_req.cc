@@ -30,9 +30,11 @@ bool Init_t_msg_req_len(int msg_req_len) {
 class randomgFDRAII {
 public:
   randomgFDRAII(int fd) : fd_(fd) {}
+
   ~randomgFDRAII() {
     close(fd_);
   }
+
 private:
   int fd_;
 };
@@ -78,6 +80,8 @@ std::string MsgReqUtil::genMsgNumber() {
       RpcErrorLog << "read /dev/urandom data less " << t_msg_req_len << " bytes";
       return "";
     }
+
+    // 非数字项转化为数字项
     t_max_msg_req_nu = "";
     for (int i = 0; i < t_msg_req_len; ++i) {
       uint8_t x = ((uint8_t)(res[i])) % 10;

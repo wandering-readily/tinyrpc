@@ -26,7 +26,6 @@ void* ThreadPool::MainFunction(void* ptr) {
     cb();
   }
   return nullptr;
-
 }
 
 
@@ -43,7 +42,6 @@ void ThreadPool::start() {
   for (int i = 0; i < m_size; ++i) {
     pthread_create(&m_threads[i], nullptr, &ThreadPool::MainFunction, this);
   }
-  
 }
 
 void ThreadPool::stop() {

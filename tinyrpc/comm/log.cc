@@ -31,34 +31,6 @@
 
 namespace tinyrpc {
 
-class Logger;
-extern Logger::sptr gRpcLogger;
-
-bool OpenLogger() {
-  // 减少logger多余的文件, 以免堵塞服务器
-  return false;
-  // return gRpcLogger != nullptr;
-}
-
-std::shared_ptr<Logger> GetGRpcLogger() {
-  return gRpcLogger;
-}
-
-LogTmp::LogTmp(LogLevel level, LogEvent::sptr event) : m_level(level), m_event(event) {}
-
-LogTmp::~LogTmp() {
-  std::string content = m_event->toString();
-  fwrite(content.data(), 1, content.size(), stdout);
-}
-
-
-LogInGrpcLogger::LogInGrpcLogger(LogEvent::sptr event) : m_event(event) {}
-
-LogInGrpcLogger::~LogInGrpcLogger() {
-  m_event->log(); 
-}
-
-
 // flush，然后回收异步处理线程
 void CoredumpHandler(int signal_no) {
   printf("progress received invalid signal, will exit\n");
@@ -85,27 +57,19 @@ pid_t gettid() {
 
 
 
-LogEvent::LogEvent(LogLevel level, const char* file_name, int line, const char* func_name, LogType type)
-  : m_level(level),
-    m_file_name(file_name),
-    m_line(line),
-    m_func_name(func_name),
-    m_type(type) {
+
+
+
+// 2. 链接在start.cc保存的全局变量gRpcLogger
+class Logger;
+extern Logger::sptr gRpcLogger;
+
+std::shared_ptr<Logger> GetGRpcLogger() {
+  return gRpcLogger;
 }
 
-LogEvent::~LogEvent() {
 
-}
-
-void LogEvent::log() {
-  m_ss << "\n";
-  if (m_type == LogType::RPC_LOG) {
-    gRpcLogger->pushRpcLog(m_ss.str());
-  } else if (m_type == LogType::APP_LOG) {
-    gRpcLogger->pushAppLog(m_ss.str());
-  }
-}
-
+// 3. 常用的{LogLevel, Logtype}  <==>  std::string转换函数
 std::string levelToString(LogLevel level) {
   std::string re = "DEBUG";
   switch(level) {
@@ -165,6 +129,28 @@ std::string LogTypeToString(LogType logtype) {
 }
 
 
+
+// 4. LogEvent
+LogEvent::LogEvent(LogLevel level, const char* file_name, int line, const char* func_name, LogType type)
+  : m_level(level),
+    m_file_name(file_name),
+    m_line(line),
+    m_func_name(func_name),
+    m_type(type) {
+}
+
+LogEvent::~LogEvent() {}
+
+void LogEvent::log() {
+  m_ss << "\n";
+  if (m_type == LogType::RPC_LOG) {
+    gRpcLogger->pushRpcLog(m_ss.str());
+  } else if (m_type == LogType::APP_LOG) {
+    gRpcLogger->pushAppLog(m_ss.str());
+  }
+}
+
+
 std::stringstream& LogEvent::getStringStream() {
 
   // time_t now_time = m_timestamp;
@@ -203,10 +189,11 @@ std::stringstream& LogEvent::getStringStream() {
   m_ss << "[" << m_pid << "]\t" 
 		<< "[" << m_tid << "]\t"
 		<< "[" << m_cor_id << "]\t"
-    << "[" << m_file_name << ":" << m_line << "]\t";
-    // << "[" << m_func_name << "]\t";
+    << "[" << m_file_name << ":" << m_line << "]\t"
+    << "[" << m_func_name << "]\t";
   RunTime* runtime = getCurrentRunTime();
-  // ?当前协程运行时间
+
+  // 5. 当前协程运行时参数
   if (runtime) {
     std::string msgno = runtime->m_msg_no;
     if (!msgno.empty()) {
@@ -222,29 +209,49 @@ std::stringstream& LogEvent::getStringStream() {
   return m_ss;
 }
 
-
 std::string LogEvent::toString() {
   return getStringStream().str();
 }
 
 
 
-Logger::Logger() {
-  // cannot do anything which will call LOG ,otherwise is will coredump
+// 5. LogTmp
+LogTmp::LogTmp(LogLevel level, LogEvent::sptr event) : m_level(level), m_event(event) {}
+LogTmp::~LogTmp() {
+  std::string content = m_event->toString();
+  fwrite(content.data(), 1, content.size(), stdout);
+}
 
+
+// 6. logInGrpcLogger
+LogInGrpcLogger::LogInGrpcLogger(LogEvent::sptr event) : m_event(event) {}
+LogInGrpcLogger::~LogInGrpcLogger() {
+  m_event->log(); 
+}
+
+
+
+
+
+
+
+Logger::Logger() { // cannot do anything which will call LOG ,otherwise is will coredump
 }
 
 Logger::~Logger() {
+  // 清空AsyncLogger内容，并强制fflush()
   stopAndFlush();
 
-  pthread_join(m_async_rpc_logger->m_thread, NULL);
-  pthread_join(m_async_app_logger->m_thread, NULL);
+  // 按道理谁来启动谁结束，那么应该是asyncLogger自己join()
+  // pthread_join(m_async_rpc_logger->m_thread, NULL);
+  // pthread_join(m_async_app_logger->m_thread, NULL);
 }
 
 
 void Logger::init(const char* file_name, const char* file_path, int max_size, int sync_inteval) {
   if (!m_is_init) {
     m_sync_inteval = sync_inteval;
+
     for (int i = 0 ; i < 1000000; ++i) {
       m_app_buffer.push_back("");
       m_buffer.push_back("");
@@ -270,8 +277,9 @@ void Logger::init(const char* file_name, const char* file_path, int max_size, in
   }
 }
 
-// ???
-// 加入reactor
+
+// 定义Loggeer定时输出函数
+// 并加入reactor，定时输出到底层线程池
 void Logger::start() {
   TimerEvent::sptr event = std::make_shared<TimerEvent>(m_sync_inteval, true, std::bind(&Logger::loopFunc, this));
   Reactor::GetReactor()->getTimer()->addTimerEvent(event);
@@ -306,6 +314,7 @@ void Logger::pushAppLog(const std::string& msg) {
 }
 
 void Logger::stopAndFlush() {
+  // 确保先输出内容到底层线程，再stop
   loopFunc();
   m_async_rpc_logger->stop();
   m_async_rpc_logger->flush();
@@ -331,8 +340,8 @@ AsyncLogger::AsyncLogger(const char* file_name, const char* file_path, int max_s
 }
 
 AsyncLogger::~AsyncLogger() {
-  pthread_cond_destroy(&m_condition);
   pthread_join(m_thread, NULL);
+  pthread_cond_destroy(&m_condition);
   sem_destroy(&m_semaphore);
 }
 
@@ -348,15 +357,19 @@ void* AsyncLogger::excute(void* arg) {
   while (1) {
     std::vector<std::string> tmp;
     bool is_stop = false;
+
     // 1. 取任务
     {
     Mutex::Lock lock(ptr->m_mutex);
-
+    // 要么来task，要么要退出
     while (ptr->m_tasks.empty() && !ptr->m_stop) {
       pthread_cond_wait(&(ptr->m_condition), ptr->m_mutex.getMutex());
     }
-    tmp.swap(ptr->m_tasks.front());
-    ptr->m_tasks.pop();
+
+    if (!ptr->m_tasks.empty()) {
+      tmp.swap(ptr->m_tasks.front());
+      ptr->m_tasks.pop();
+    }
     is_stop = ptr->m_stop;
     }
 
@@ -407,6 +420,7 @@ void* AsyncLogger::excute(void* arg) {
       ptr->m_need_reopen = false;
     }
 
+    // 确保日志文件不超长
     if (ptr->m_file_handle && ftell(ptr->m_file_handle) > ptr->m_max_size) {
       fclose(ptr->m_file_handle);
 
@@ -422,10 +436,11 @@ void* AsyncLogger::excute(void* arg) {
       ptr->m_need_reopen = false;
     }
 
+
     if (!ptr->m_file_handle) {
       printf("open log file %s error!", full_file_name.c_str());
-    } else {
 
+    } else {
       for(auto i : tmp) {
         if (!i.empty()) {
           fwrite(i.c_str(), 1, i.length(), ptr->m_file_handle);
@@ -435,10 +450,10 @@ void* AsyncLogger::excute(void* arg) {
       fflush(ptr->m_file_handle);
     }
 
+    // 最后内容输出完毕后，如果要退出就推出
     if (is_stop) {
       break;
     }
-
   }
  
   if (ptr->m_file_handle) {
@@ -446,10 +461,7 @@ void* AsyncLogger::excute(void* arg) {
   }
 
   return nullptr;
-
 }
-
-
 
 // ???
 // 不是fixed queue，因此可能有超出内存的风险
@@ -475,6 +487,9 @@ void AsyncLogger::stop() {
   }
 }
 
+
+
+// Exit()优雅的退出
 void Exit(int code) {
   #ifdef DECLARE_MYSQL_PLUGIN
   mysql_library_end();

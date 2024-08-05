@@ -64,7 +64,7 @@ class TinyPbRpcAsyncChannel \
 
   sem_t *getMainCorSemaphorePtr() {return &mainCor_semaphore;}
 
-  bool isMainCorSet() {return mainCorSet;}
+  bool isWaitedOnThread_semNotify() {return mainCorSet || (!m_current_iothread);}
 
   google::protobuf::RpcController* getControllerPtr();
 
@@ -95,7 +95,7 @@ class TinyPbRpcAsyncChannel \
 
   std::weak_ptr<CoroutinePool> weakCorPool_;
 
-  bool mainCorSet = false;
+  bool mainCorSet {false};
   sem_t mainCor_semaphore;
 };
 

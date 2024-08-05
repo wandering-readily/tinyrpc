@@ -18,10 +18,13 @@ namespace details {
 
 
 void connKeepAlive(tinyrpc::TcpConnection::sptr conn) {
-  // 保活机制
+  // 之前客户端机制保证一次连接使用一个网络连接，这很浪费
+  // 后来设置{地址: RpcClientConnection}池子，既保证一个服务端连接地址对应多个RpcClientConnection
+  // 又保证连接短时间内不断开
+  // 保活机制  ==>  保证后续在客户端复用网络连接时服务端不会提前中断
   int64_t now = details::getNowMs();
-  // 误差10ms
-  if (conn->getServerCloseConnTime() > now + 10) {
+  // 之前误差10ms，现在设置误差时间3ms
+  if (conn->getServerCloseConnTime() > now + 3) {
     // 这里已经没到断开连接时间，注定不会onn->m_weak_slot.lock()不会析构
     // 避免多道shutdown命令影响性能，同时确定mainReacotr的timeWheel还有没有连接
     // m_weak_slot对应的shared_ptr
@@ -148,6 +151,9 @@ TcpConnection::~TcpConnection() {
     // std::cout << "client conn " << m_fd << " out" << "\n\n";
   }
 
+  // 实验功能2: 加入clearClient()
+  // 如果TcpConnection()意外析构，需要多一步处理
+  // clearClient();
   // serverCloseConnTime_ = 0;
   RpcDebugLog << "~TcpConnection, fd=" << m_fd;
 }
@@ -160,6 +166,8 @@ void TcpConnection::initBuffer(int size) {
 
 }
 
+
+// TCPserver主函数
 void TcpConnection::MainServerLoopCorFunc() {
 
   while (!m_stop) {
@@ -222,6 +230,8 @@ void TcpConnection::input() {
     // ioctl(m_fd, FIONREAD, &avail); 也可能解决不了这个问题
     // 只有在外部检验validaty才停止收包方法好用
 
+    // 如果第一次read_hook没有read到，那么会一直在协程当中
+    // 否则有read到数据的read_hook后续没有数据传入，就要考虑读包试试取包执行了
     int rt = read_hook(fdEventPool->getFdEvent(m_fd), \
       &(m_read_buffer->m_buffer[write_index]), 
       read_count, count == 0);
@@ -252,6 +262,8 @@ void TcpConnection::input() {
         // 也是解决packageLen问题
         // 读了字节server就不要close_flag了，因为很可能还有longLive连接
         if (isServerConn() && count == 0) {
+          // 因为count==0的read_hook在没有读数据到来时，会陷入在协程中
+          // 此时如果协程被唤醒且还没有读取到数据那么就是对面peer发送端关闭了
           close_flag = true;
         }
         break;
@@ -277,16 +289,22 @@ void TcpConnection::input() {
         }
         // RpcDebugLog << "read_count > rt";
         // read all data in socket buffer, skip out loop
+        // 如果当前所有读数据都读完了的话
+        // 那么尝试推出取数据
         read_all = true;
         break;
       }
     }
   }
 
+  // 如果服务器程序突然关闭，这边没有clearClient()
+  // 直接析构呢？
+  // 那文件资源怎么办，一直在处在僵尸进程当中，占用了资源部分时间
   if (close_flag) {
     // 关闭服务器对客户的设置
     clearClient();
     RpcDebugLog << "peer close, now yield current coroutine, wait main thread clear this TcpConnection";
+    // 当前connection的cor已经不能用了
     Coroutine::GetCurrentCoroutine()->setCanResume(false);
     Coroutine::Yield();
     // return;
@@ -315,6 +333,7 @@ void TcpConnection::execute() {
 
   // it only server do this
   while(m_read_buffer->readAble() > 0) {
+    // 实验功能3： 这里应该做成多态Data
     AbstractData::sptr data;
     if (m_codec->getProtocalType() == ProtocalType::TinyPb_Protocal) {
       data = std::make_shared<TinyPbStruct>();
@@ -322,12 +341,15 @@ void TcpConnection::execute() {
       data = std::make_shared<HttpRequest>();
     }
 
+    // 取完整包
     m_codec->decode(m_read_buffer.get(), data.get());
     // RpcDebugLog << "parse service_name=" << pb_struct.service_full_name;
     if (!data->decode_succ) {
       RpcErrorLog << "it parse request error of fd " << m_fd;
       break;
     }
+
+    // 包处理
     // RpcDebugLog << "it parse request success";
     if (m_connection_type == ConnectionType::ServerConnection) {
       // RpcDebugLog << "to dispatch this package";
@@ -368,6 +390,22 @@ void TcpConnection::output() {
     int rt = write_hook(fdEventPool->getFdEvent(m_fd), &(m_write_buffer->m_buffer[read_index]), total_size);
     int savedErrno = errno;
     // RpcInfoLog << "write end";
+
+    // 如果一开始write_hook()发送缓存满，那么EAGAIN
+    // 第二次write_hook()被系统唤醒，说明此时发送缓存空了，还是EAGAIN，那么说明对面服务端关闭了连接
+    // 此时应该停止写输出
+
+    // !!!
+    // 如果服务响应时间太长了，提前关闭了对客户响应的连接
+    // 那么此时ret == 0，应该停止写输出
+    
+    // 停止写输出了代表这个TcpConnection该断开连接了
+    // 读端也会收不到消息，那么此时真正断开连接
+    // 那这里要不要提前clearClient()呢
+    // 不需要
+    // 1. 增加操作困难，毕竟服务端客户端都会调用这个output()函数
+    // 2. rt == 0代表对面关闭，EAGAIN代表自己写缓存已满
+    // 3. 直接退出output()即可
     if (rt <= 0) {
       if (rt == 0 || savedErrno == EAGAIN) [[likely]] {
         break;
@@ -407,7 +445,7 @@ void TcpConnection::clearClient() {
   // 关闭连接，那么在清除连接端函数TcpServer::ClearClientTimerFunc()
   // 知晓设置CLOSED状态后，减少shared_ptr<TcpConnection>的计数
   // 从而关闭TcpConnection，换回coroutine
-  if (getState() == Closed) {
+  if (getState() == Closed || m_fd >= 0) {
     RpcDebugLog << "this client has closed";
     return;
   }
@@ -421,12 +459,15 @@ void TcpConnection::clearClient() {
   // 关闭fd
   close(m_fd_event->getFd());
   setState(Closed);
-
+  setFd(-1);
 }
 
 void TcpConnection::shutdownConnection() {
   TcpConnectionState state = getState();
   printf("shutdown conn fd %d\n", m_fd);
+  // 必须加这一步，因为很可能client先释放，带动server关闭网络描述符
+  // 但是注册在timerWheel的Connection没有析构，反而定时调用shutdownConnection
+  // 此步判断将阻止第二次shutdown()函数误触重新分配的fd
   if (state == Closed || state == NotConnected) {
     RpcDebugLog << "this client has closed";
     return;

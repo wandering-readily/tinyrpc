@@ -51,6 +51,8 @@ void CoFunction(Coroutine* co) {
     co->setIsInCoFunc(false);
   }
 
+  // !!!
+  // 当resume的function执行完毕后，会回到main Coroutine
   // here coroutine's callback function finished, that means coroutine's life is over. we should yiled main couroutine
   Coroutine::Yield();
 }
@@ -106,6 +108,8 @@ Coroutine::Coroutine(int size, char* stack_ptr, std::function<void()> cb)
 // 设立协程的下一个执行地址
 bool Coroutine::setCallBack(std::function<void()> cb) {
 
+  // 如果是主协程，那么不能设置回调函数
+  // 如果正在执行协程函数，那么不能设置新的回调函数
   if (this == t_main_coroutine) {
     RpcErrorLog << "main coroutine can't set callback";
     return false;
@@ -125,16 +129,18 @@ bool Coroutine::setCallBack(std::function<void()> cb) {
   // first set 0 to stack
   // memset(&top, 0, m_stack_size);
 
-  // & -16LL 操作取最低四位的地址
+  // & -16LL 操作消除最低四位的地址，取低地址
   // 那么高地址相当于stack，低地址相当于区间段
   top = reinterpret_cast<char*>((reinterpret_cast<unsigned long>(top)) & -16LL);
 
   // 设置寄存器
   memset(&m_coctx, 0, sizeof(m_coctx));
 
+  // 相当于进入其它函数，这个是模拟入栈过程，出栈过程只是入栈main_coroutine
   // 栈顶
   m_coctx.regs[kRSP] = top;
-  // 栈底
+  // 其中 rbp 保存的是栈中当前执行函数的基本地址，
+  // 当前执行函数所有存储在栈上的数据都要靠 rbp 指针加上偏移量来读取
   m_coctx.regs[kRBP] = top;
   // 下一个要执行的命令，也就是回调函数
   m_coctx.regs[kRETAddr] = reinterpret_cast<char*>(CoFunction); 

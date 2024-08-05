@@ -51,6 +51,7 @@ void RpcClient::resetFd() {
   this->conn_->m_fd = createNonblockingOrDie(this->conn_->m_peer_addr->getFamily());
 }
 
+// 代替了部分TcpConnection功能
 int RpcClient::sendAndRecvTinyPb(const std::string& msg_no, TinyPbStruct::pb_sptr& res) {
 
   updateTcpState();
@@ -150,7 +151,7 @@ int RpcClient::sendAndRecvTinyPb(const std::string& msg_no, TinyPbStruct::pb_spt
   while (!this->conn_->getResPackageData(msg_no, res)) {
     this->conn_->input();
 
-    // 如果接收服务器回复超市的话，那么进入错误处理
+    // 如果接收服务器回复超时的话，那么进入错误处理
     if (this->conn_->getOverTimerFlag()) {
       is_timeout = true;
       goto err_deal;
@@ -186,6 +187,9 @@ err_deal:
 
 }
 
+
+// 复用的文件描述符TCP连接可能断开
+// 这里需要重连
 bool RpcClient::updateTcpState() {
 
   struct tcp_info info;
@@ -194,7 +198,12 @@ bool RpcClient::updateTcpState() {
 
   if(info.tcpi_state != TCP_ESTABLISHED) {
     // printf("conn fd %d disconnect\n", this->conn_->getFd());
-    // 避免第一次resetFd
+    // 注意这里的this->conn_是client Connection
+    // client Connection NotConnected状态(初始状态)也不管
+    // client Connection Closed状态那么也不管
+    // 因为这几种状态要么是未使用过的fd，要么是已经重新resetFd()过了
+    // 其它状态Connected(这个不可能，因为在Connected必定TCP_ESTABLISHED), 
+    //    HalfClosing(这个可能，很可能shutdown()之后未来得及close，但是也不必复用了，因为距离上一次接收任务时间太久了)重置
     if (this->conn_->getState() != NotConnected && this->conn_->getState() != Closed) {
       // 从client的角度来看
       // 已经得到想要的数据包了，可以close fd
@@ -227,6 +236,8 @@ RpcClientGroups::RpcClientGroups(int maxFreeConns, ProtocalType type) \
 
 
 RpcClientGroups::~RpcClientGroups() {
+  // 因为RpcClientGroups在client，不适用reactorLoop
+  // 且同一个rpc_addr服用fd和TcpConnection
   for (auto &conn : workConns_) {
     int fd = conn->getFd();
     if (fd > 0) [[likely]] {
@@ -254,6 +265,8 @@ TcpConnection::sptr RpcClientGroups::getConnection(NetAddress::sptr peer_addr) {
   TcpConnection::sptr rs;
     {
       bool hasFree = false;
+      // 为什么it可以拿出来呢
+      // 因为freeConns_除了析构，其他情况只增不减
       auto it = freeConns_.end();
       {
         Mutex::Lock lock(freeConns_mutex_);

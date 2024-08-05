@@ -17,6 +17,8 @@ class NetAddress {
 
  public:
   typedef std::shared_ptr<NetAddress> sptr;
+  
+  virtual ~NetAddress() = default;
 
  public:
 

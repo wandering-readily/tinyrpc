@@ -11,9 +11,9 @@ namespace tinyrpc {
 Memory::Memory(int block_size, int block_count) : m_block_size(block_size), m_block_count(block_count) {
   m_size = m_block_count * m_block_size;
   m_start = (char*)malloc(m_size);
-  assert(m_start != (void*)-1);
+  assert(m_start != NULL && m_start != (void*)-1);
   RpcInfoLog << "succ mmap " << m_size << " bytes memory";
-  m_end = m_start + m_size - 1;
+  m_end = m_start + m_size;
   m_blocks.resize(m_block_count);
   for (size_t i = 0; i < m_blocks.size(); ++i) {
     m_blocks[i] = false;
@@ -103,6 +103,11 @@ void Memory::backBlock(char* s) {
     return;
   }
   int i = (s - m_start) / m_block_size;
+  if ((s - m_start) != (i * m_block_size)) {
+    RpcErrorLog << "error, this block is not aligned to this Memory";
+    return;
+  }
+
   {
   Mutex::Lock lock(m_mutex);
   if (m_blocks[i] == false) {

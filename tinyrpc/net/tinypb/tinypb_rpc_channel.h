@@ -8,6 +8,13 @@
 
 namespace tinyrpc {
 
+// client rpc调用该CallMethod()代理调用
+// 需要完成的任务:
+//    1. 调用RPC方法将Request结构体内容解码加入发送缓存
+//    2. 设置msg_req_number设置当前client的消息代号
+//    3. 将发送缓存内容发送
+//    4. 接收rpc返回消息(陷入阻塞)
+//    5. 将返回消息编码回Response
 class TinyPbRpcChannel : public google::protobuf::RpcChannel {
 
  public:

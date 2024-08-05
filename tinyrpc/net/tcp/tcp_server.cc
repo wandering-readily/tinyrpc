@@ -217,6 +217,7 @@ void TcpServer::start() {
 	tinyrpc::CoroutinePool::sptr corPool = weakCorPool_.lock();
 	assert(corPool != nullptr && "corPool had released");
 	m_accept_cor = corPool->getCoroutineInstanse();
+	// 先进一次MainAcceptCorFunc
 	m_accept_cor->setCallBack(std::bind(&TcpServer::MainAcceptCorFunc, this));
 
 	RpcInfoLog << "resume accept coroutine";
@@ -261,9 +262,11 @@ void TcpServer::MainAcceptCorFunc() {
 		// m_clients持有conn的shared_ptr指针
 		// !!!
 		// 重点阅读DEBUG
+		// 添加TcpConnection
 		TcpConnection::sptr conn = addClient(io_thread, fd);
 		// !!!
 		// 重点阅读DEBUG
+		// 服务端TcpConnection循环协程钩子设置
 		conn->initServer();
 		RpcDebugLog << "tcpconnection address is " << conn.get() << ", and fd is" << fd;
 
@@ -274,6 +277,7 @@ void TcpServer::MainAcceptCorFunc() {
 
 	// !!!
 	// 重点阅读DEBUG
+	// 对应线程添加协程执行命令
     io_thread->getReactor()->addCoroutine(conn->getCoroutine());
     m_tcp_counts++;
     RpcDebugLog << "current tcp connection count is [" << m_tcp_counts << "]";

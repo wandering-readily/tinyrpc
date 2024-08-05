@@ -34,6 +34,7 @@ TcpClient::TcpClient(NetAddress::sptr addr, ProtocalType type) \
     m_reactor = Reactor::GetReactor();
   }
 
+  // 实验功能5: 这里应该做成多态功能
   if (type == ProtocalType::Http_Protocal) {
 		m_codec = std::make_shared<HttpCodeC>();
 	} else {
@@ -52,6 +53,7 @@ TcpClient::~TcpClient() {
   if (m_fd > 0) {
     fdEventPool_->getFdEvent(m_fd)->unregisterFromReactor(); 
     close(m_fd);
+    m_fd = -1;
     RpcDebugLog << "~TcpClient() close fd = " << m_fd;
   }
 }
@@ -100,6 +102,8 @@ int TcpClient::sendAndRecvTinyPb(const std::string& msg_no, TinyPbStruct::pb_spt
   // 是否应该增加超时重连机制?
   // TimerEvent::sptr event = std::make_shared<TimerEvent>(m_max_timeout, false, timer_cb);
   // m_reactor->getTimer()->addTimerEvent(event);
+
+  // 实验功能6: 改善加入一个轻量级定时器
   auto timer = std::make_shared<LightTimer> (m_max_timeout, timer_cb, lightTimerPool_);
   timer->registerInLoop();
 
@@ -124,7 +128,7 @@ int TcpClient::sendAndRecvTinyPb(const std::string& msg_no, TinyPbStruct::pb_spt
         case EISCONN:
         {
           RpcDebugLog << "connect [" << m_peer_addr->toString() << "] succ!";
-        // 设置已连接
+          // 设置已连接
           m_connection->setUpClient();
           break;
         }
@@ -190,7 +194,7 @@ int TcpClient::sendAndRecvTinyPb(const std::string& msg_no, TinyPbStruct::pb_spt
     RpcDebugLog << "redo getResPackageData";
     m_connection->input();
 
-    // 如果接收服务器回复超市的话，那么进入错误处理
+    // 如果接收服务器回复超时的话，那么进入错误处理
     if (m_connection->getOverTimerFlag()) {
       RpcInfoLog << "read data over time";
       is_timeout = true;
@@ -202,7 +206,6 @@ int TcpClient::sendAndRecvTinyPb(const std::string& msg_no, TinyPbStruct::pb_spt
     }
 
     m_connection->execute();
-
   }
 
   // m_reactor->getTimer()->delTimerEvent(event);
