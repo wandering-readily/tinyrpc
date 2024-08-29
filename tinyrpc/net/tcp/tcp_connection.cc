@@ -24,7 +24,7 @@ void connKeepAlive(tinyrpc::TcpConnection::sptr conn) {
   // 保活机制  ==>  保证后续在客户端复用网络连接时服务端不会提前中断
   int64_t now = details::getNowMs();
   // 之前误差10ms，现在设置误差时间3ms
-  if (conn->getServerCloseConnTime() > now + 3) {
+  if (conn->getServerCloseConnTime() > now) {
     // 这里已经没到断开连接时间，注定不会onn->m_weak_slot.lock()不会析构
     // 避免多道shutdown命令影响性能，同时确定mainReacotr的timeWheel还有没有连接
     // m_weak_slot对应的shared_ptr
@@ -367,6 +367,11 @@ void TcpConnection::execute() {
 
 }
 
+
+// 完整发送一个包
+// 但是取包input()函数却不一定，可能某些字节丢失，
+// 那么如果某次input()读了一点数据，却陷入了阻塞，就要去验证是否一个完整的包
+// 否则这个包数据如果永久丢失，就一直阻塞在这儿
 void TcpConnection::output() {
   if (m_is_over_time) {
     RpcInfoLog << "over timer, skip output progress";

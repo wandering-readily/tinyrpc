@@ -63,6 +63,7 @@ Reactor::Reactor() {
 Reactor::~Reactor() {
   RpcDebugLog << "~Reactor";
 	close(m_epfd);
+  close(m_wake_fd);
   if (m_timer != nullptr) {
     delete m_timer;
     m_timer = nullptr;

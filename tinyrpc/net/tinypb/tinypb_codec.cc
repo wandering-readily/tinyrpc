@@ -39,28 +39,30 @@ void TinyPbCodeC::encode(TcpBuffer* buf, AbstractData* data) {
   TinyPbStruct* tmp = dynamic_cast<TinyPbStruct*>(data);
 
   int len = 0;
-  const char* re = encodePbData(tmp, len);
-  if (re == nullptr || len == 0 || !tmp->encode_succ) {
+  // const char* re = encodePbData(tmp, len);
+  std::string re = encodePbData(tmp, len);
+  // if (re == nullptr || len == 0 || !tmp->encode_succ) {
+  if (re.empty() || len == 0 || !tmp->encode_succ) {
     RpcErrorLog << "encode error";
     data->encode_succ = false;
     return;
   }
   RpcDebugLog << "encode package len = " << len;
   if (buf != nullptr) {
-    buf->writeToBuffer(re, len);
+    buf->writeToBuffer(re.c_str(), len);
     RpcDebugLog << "succ encode and write to buffer, writeindex=" << buf->writeIndex();
   }
   data = tmp;
   // encodePbData()返回的const char *字符串是malloc()堆分配的 
-  if (re) {
-    free((void*)re);
-    re = NULL;
-  }
+  // if (re) {
+    // free((void*)re);
+    // re = NULL;
+  // }
   // RpcDebugLog << "test encode end";
 
 }
 
-const char* TinyPbCodeC::encodePbData(TinyPbStruct* data, int& len) {
+std::string TinyPbCodeC::encodePbData(TinyPbStruct* data, int& len) {
   if (data->service_full_name.empty()) {
     RpcErrorLog << "parse error, service_full_name is empty";
     data->encode_succ = false;
@@ -77,7 +79,9 @@ const char* TinyPbCodeC::encodePbData(TinyPbStruct* data, int& len) {
                     + data->msg_req.length() + data->err_info.length();
   
   RpcDebugLog << "encode pk_len = " << pk_len;
-  char* buf = reinterpret_cast<char*>(malloc(pk_len));
+  std::string bufStr(pk_len, '\0');
+  char *buf = bufStr.data();
+  // char* buf = reinterpret_cast<char*>(malloc(pk_len));
   char* tmp = buf;
   *tmp = PB_START;
   tmp++;
@@ -149,8 +153,8 @@ const char* TinyPbCodeC::encodePbData(TinyPbStruct* data, int& len) {
 
   len = pk_len;
 
-  return buf;
-
+  // return buf;
+  return bufStr;
 }
 
 void TinyPbCodeC::decode(TcpBuffer* buf, AbstractData* data) {

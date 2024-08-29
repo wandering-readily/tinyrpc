@@ -17,14 +17,26 @@ LightTimer::LightTimer(int interval, std::function<void(void)> cb, \
   sem_init(&sem_waitDelInLoop, 0, 0);
   fd_ = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK|TFD_CLOEXEC);
 
+  setInterval(interval);
+}
+
+
+void LightTimer::setInterval(int interval) {
+  interval_ = interval;
+  resetInterval();
+}
+
+
+void LightTimer::resetInterval() {
   memset(&value_, 0, sizeof(value_));
   timespec ts;
   memset(&ts, 0, sizeof(ts));
-  ts.tv_sec = interval / 1000;
-  ts.tv_nsec = (interval % 1000) * 1000000;
+  ts.tv_sec = interval_ / 1000;
+  ts.tv_nsec = (interval_ % 1000) * 1000000;
   value_.it_value = ts;
-
 }
+
+
 
 bool LightTimer::registerInLoop() {
   LightTimerPool::sptr timerPool = weakLightTimerPool_.lock();
@@ -48,10 +60,10 @@ bool LightTimer::registerInLoop() {
 
 LightTimer::~LightTimer() {
   cancelCB();
-  LightTimerPool::sptr timerPool = weakLightTimerPool_.lock();
-  if (timerPool) [[likely]] {
-    timerPool->delLightTimer(fd_);
-    if (added) {
+  if (added) [[likely]] {
+    LightTimerPool::sptr timerPool = weakLightTimerPool_.lock();
+    if (timerPool) {
+      timerPool->delLightTimer(fd_);
       sem_wait(getwaitDelInLoopSem());
     }
   }
@@ -61,7 +73,7 @@ LightTimer::~LightTimer() {
   close(fd_);
 }
 
-bool LightTimer::resetTimer(std::function<void(void)> cb) {
+bool LightTimer::resetTimer(std::function<void(void)> cb, int interval) {
   if (!called) {
     return false;
   }
@@ -72,6 +84,9 @@ bool LightTimer::resetTimer(std::function<void(void)> cb) {
   cb_ = cb;
   called = false;
 
+  if (interval != 0) {
+    setInterval(interval);
+  }
   int rs = timerfd_settime(fd_, 0, &value_, nullptr);
   if (rs != 0) [[unlikely]] {
     locateErrorExit
@@ -86,6 +101,13 @@ void LightTimer::cancel() {
   int rt = timerfd_settime(fd_, 0, &new_value, NULL);
   assert(rt != -1 && "timerfd_settime can't fail");
 }
+
+
+
+
+
+
+
 
 LightTimerPool::LightTimerPool() {
   wake_fd_ = eventfd(0, EFD_NONBLOCK);
@@ -114,14 +136,11 @@ bool LightTimerPool::addLightTimer(LightTimer::sptr timer) {
 
 bool LightTimerPool::LightTimerPool::delLightTimer(int fd) {
   {
+    PISP event{fd, nullptr};
     tinyrpc::Mutex::Lock lock(mutex_);
     if (lightTimers_.find(fd) == lightTimers_.end()) {
       return true;
     }
-  }
-  {
-    PISP event{fd, nullptr};
-    tinyrpc::Mutex::Lock lock(mutex_);
     pending_del_fds_.push_back(std::move(event));
   }
   wakeup();
@@ -198,7 +217,6 @@ bool LightTimerPool::delLightTimerInLoop(int fd) {
   timeCancelChannels.erase(fd);
   sem_post(cancelChannel);
   return true;
-
 }
 
 void *LightTimerPool::Loop(void *arg) {

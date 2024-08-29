@@ -28,7 +28,7 @@ class TinyPbCodeC: public AbstractCodeC {
   // overwrite
   virtual ProtocalType getProtocalType();
 
-  const char* encodePbData(TinyPbStruct* data, int& len);
+  std::string encodePbData(TinyPbStruct* data, int& len);
 
 };
 

@@ -11,7 +11,7 @@ void* ThreadPool::MainFunction(void* ptr) {
   // 这里m_condition为什么还要初始化呢?
   // pthread_cond_init(&pool->m_condition, NULL);
 
-  while (!pool->m_is_stop) {
+  while (!pool->m_is_stop || !pool->m_tasks.empty()) {
     std::function<void()> cb;
     {
     Mutex::Lock lock(pool->m_mutex);
@@ -45,12 +45,16 @@ void ThreadPool::start() {
 }
 
 void ThreadPool::stop() {
+  Mutex::Lock lock(m_mutex);
   m_is_stop = true;
 }
 
 
 void ThreadPool::addTask(std::function<void()> cb) {
   Mutex::Lock lock(m_mutex);
+  if (m_is_stop) {
+    return;
+  }
   m_tasks.push(cb);
   pthread_cond_signal(&m_condition);
 }
@@ -62,6 +66,7 @@ ThreadPool::~ThreadPool() {
 
   // ???
   // 为什么删掉呢？
+  this->stop();
   for (int i = 0; i < m_size; ++i) {
     pthread_join(m_threads[i], nullptr);
   }

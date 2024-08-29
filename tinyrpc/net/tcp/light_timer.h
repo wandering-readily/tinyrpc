@@ -27,14 +27,18 @@ public:
 
   bool registerInLoop();
 
-  bool resetTimer(std::function<void(void)>);
+  bool resetTimer(std::function<void(void)>, int interval=0);
 
   void cancelCB() {
     cb_ = [](){};
     called = true;;
   }
 
+  void setInterval(int);
+
 private:
+
+  void resetInterval();
 
   int getFd() const {return fd_;}
 
@@ -52,6 +56,7 @@ private:
 private:
   bool called = false;
   int fd_;
+  int interval_ = 0;
   sem_t sem_waitAddInLoop;
   std::atomic_bool added {false};
 

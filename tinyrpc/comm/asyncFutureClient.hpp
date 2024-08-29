@@ -50,12 +50,12 @@ public:
     std::packaged_task<void(void)> task{
       [=] () {
         this->template Call<S>(method_name, request.get(), response.get());
-        return response;
       }
     };
 
-    task();
-    return task.get_future();
+    auto future = task.get_future();
+    std::thread(std::move(task)).detach();
+    return future;
   }
 
 };

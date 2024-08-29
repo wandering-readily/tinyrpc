@@ -143,7 +143,8 @@ public:
     auto async_channel = std::make_shared<TinyPbRpcAsyncChannel>(this->addr_);
     async_channel->saveCallee( 
       rpc_controller, request, response, closure, 
-      corPool_, IOThreadPool_->getRandomThread(true).get());
+      corPool_, IOThreadPool_->getRandomThread(true).get()
+    );
     auto stub = std::make_unique<details::has_Stub_t<S>> (async_channel.get());
 
     const google::protobuf::MethodDescriptor* method = 

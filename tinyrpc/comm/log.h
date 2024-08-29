@@ -28,8 +28,9 @@ namespace tinyrpc {
 // 1. 控制打不打印日志，这个在生产环境中有用
 // 编译期设置打不打印log
 // 编译期能够优化编译期false
+// g_openLogger_flag不对外开放，OpenLogger()函数对外开放
 static constexpr const bool g_openLogger_flag = false;
-consteval const bool OpenLogger() {
+inline consteval const bool OpenLogger() {
   return g_openLogger_flag;
 }
 
